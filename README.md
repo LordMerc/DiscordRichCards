@@ -145,3 +145,13 @@ All card types—Roblox, GitHub and Hermes—use the same five-second manual Ref
 The native plugin registers an image-only content-security-policy allowance for Roblox's HTTPS CDN through Vencord's supported `CspPolicies` API. A full Discord restart is required after first installing this change. It does not enable CDN scripts or renderer API connections.
 
 The plugin's info dialog includes a GitHub repository button below Authors. Vencord reserves its header source/website row for built-in plugins; custom plugins use `settingsAboutComponent` instead. In development, open **DiscordRichCardsDev** to see the updated info section; the link still points to the canonical DiscordRichCards repository.
+
+## Codex reset tracker
+
+Paste `https://hascodexratelimitreset.today/` into **Create RichCard** to preview and insert the blue Codex card, or use `[[richcard:codexreset]]`. With the isolated Dev plugin, use `[[richcard-dev:codexreset]]`.
+
+The card reads the site's public status API and shows its Yes/No verdict, latest tracked post and reasoning, source check time, and last reported reset. This is a community announcement tracker, not your personal Codex quota. Inactive or unknown monitor states are labeled; refreshing the card does not rerun the site's monitor.
+
+Enable Codex cards in plugin settings (enabled by default). Data is cached for 30 seconds, with the shared five-second manual-refresh gate, request deduplication, stale-cache fallback, and 60-second backoff on HTTP 429. No account credentials are needed. Optional external bridge mode also applies to Codex; update that bridge to a version supporting this provider.
+
+The older `[[richcard:codex:reset:today]]` marker remains supported.

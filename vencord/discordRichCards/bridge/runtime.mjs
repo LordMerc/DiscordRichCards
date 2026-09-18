@@ -278,6 +278,35 @@ function normalizeRobloxUniverse(raw, universeId) {
     };
 }
 
+function normalizeCodexStatus(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw) || typeof raw.state !== "string") {
+        throw new HttpError(502, "Codex tracker returned an invalid response");
+    }
+    const summary = asRecord(raw.automationSummary);
+    const latest = summary.latest && typeof summary.latest === "object" ? asRecord(summary.latest) : summary;
+    const text = value => typeof value === "string" ? value.slice(0, 2000) : "";
+    const timestamp = value => {
+        if (typeof value !== "number" && typeof value !== "string") return null;
+        const date = new Date(value);
+        return Number.isFinite(date.getTime()) && date.getTime() > 0 ? date.toISOString() : null;
+    };
+    let tweetUrl = null;
+    try {
+        const url = new URL(latest.tweetUrl);
+        if (url.protocol === "https:" && ["x.com", "twitter.com"].includes(url.hostname)
+            && !url.username && !url.password && !url.port && /^\/[A-Za-z0-9_]{1,15}\/status\/[1-9][0-9]*$/.test(url.pathname)) {
+            tweetUrl = url.origin + url.pathname;
+        }
+    } catch { /* A source link is optional. */ }
+    return {
+        state: ["yes", "no"].includes(raw.state) ? raw.state : "unknown",
+        monitor: ["active", "inactive"].includes(summary.mode) ? summary.mode : "unknown",
+        checkedAt: timestamp(latest.checkedAt),
+        resetAt: timestamp(raw.resetAt) ?? timestamp(asRecord(summary.lastReset).checkedAt),
+        tweetText: text(latest.tweetText), tweetUrl, rationale: text(latest.rationale)
+    };
+}
+
 export function createBridge(options = {}) {
     const config = configFrom(options);
     if (!Number.isInteger(config.port) || config.port < 0 || config.port > 65535) throw new Error("Invalid bridge port");
@@ -376,6 +405,68 @@ export function createBridge(options = {}) {
             } catch (error) {
                 const safe = error instanceof HttpError ? error : new HttpError(502, "GitHub is temporarily unavailable");
                 const entry = existing ?? { key, provider: "github", kind: "pr", data: null, fetchedAt: 0, refreshAfterMs: 0 };
+                entry.lastAttemptAt = attemptAt;
+                entry.lastManualAttemptAt = lastManualAttemptAt;
+                entry.backoffUntil = config.now() + (safe.status === 429 ? 60_000 : 30_000);
+                entry.backoffStatus = safe.status;
+                entry.backoffMessage = safe.message;
+                db.cards[key] = entry;
+                saveDb();
+                if (entry.data) return cardEnvelope(entry, { stale: true, warning: safe.message });
+                throw safe;
+            } finally {
+                pending.delete(key);
+            }
+        })();
+        pending.set(key, work);
+        return work;
+    }
+
+    async function resolveCodexReset(reference, forceRefresh) {
+        if (reference !== "today") throw new HttpError(400, "Invalid Codex reset reference");
+        const key = `codex:reset:${reference}`;
+        const existing = own(db.cards, key) ? db.cards[key] : null;
+        const now = config.now();
+        if (existing?.backoffUntil > now) {
+            if (existing.data) return cardEnvelope(existing, { stale: true, warning: existing.backoffMessage ?? "Codex tracker is temporarily unavailable" });
+            throw new HttpError(existing.backoffStatus ?? 502, existing.backoffMessage ?? "Codex tracker is temporarily unavailable");
+        }
+        if (pending.has(key)) return pending.get(key);
+
+        const fresh = existing && now - existing.fetchedAt < existing.refreshAfterMs;
+        const automaticTooSoon = existing && now - (existing.lastAttemptAt ?? 0) < MIN_AUTOMATIC_UPSTREAM_INTERVAL_MS;
+        if (!forceRefresh && existing && (fresh || automaticTooSoon)) return cardEnvelope(existing);
+
+        const manualDeferredMs = forceRefresh && existing && Math.max(0, MIN_MANUAL_UPSTREAM_INTERVAL_MS - (now - (existing.lastManualAttemptAt ?? 0)));
+        if (manualDeferredMs) return cardEnvelope(existing, { refreshDeferredMs: manualDeferredMs });
+
+        const work = (async () => {
+            const attemptAt = config.now();
+            const lastManualAttemptAt = forceRefresh ? attemptAt : existing?.lastManualAttemptAt;
+            if (forceRefresh && existing) existing.lastManualAttemptAt = attemptAt;
+            try {
+                const response = await config.fetch("https://hascodexratelimitreset.today/api/status", {
+                    headers: { accept: "application/json", "user-agent": "Discord-RichCards-Bridge/1.0" },
+                    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS), redirect: "error"
+                });
+                if (!response.ok) throw new HttpError(response.status === 429 ? 429 : 502, "Codex tracker is temporarily unavailable");
+                const data = normalizeCodexStatus(await response.json());
+                const entry = {
+                    key,
+                    provider: "codex",
+                    kind: "reset",
+                    data,
+                    fetchedAt: config.now(),
+                    refreshAfterMs: 30_000,
+                    lastAttemptAt: attemptAt,
+                    lastManualAttemptAt
+                };
+                db.cards[key] = entry;
+                saveDb();
+                return cardEnvelope(entry);
+            } catch (error) {
+                const safe = error instanceof HttpError ? error : new HttpError(502, "Codex tracker is temporarily unavailable");
+                const entry = existing ?? { key, provider: "codex", kind: "reset", data: null, fetchedAt: 0, refreshAfterMs: 0 };
                 entry.lastAttemptAt = attemptAt;
                 entry.lastManualAttemptAt = lastManualAttemptAt;
                 entry.backoffUntil = config.now() + (safe.status === 429 ? 60_000 : 30_000);
@@ -579,7 +670,8 @@ export function createBridge(options = {}) {
             return cardEnvelope({ key: `hermes:session:${card.reference}`, provider: "hermes", kind: "session", fetchedAt: Date.parse(state.updatedAt) || config.now(), refreshAfterMs: 1_000, data: state });
         }],
         ["github:pr", async (card, forceRefresh) => resolveGithubPull(card.reference, forceRefresh)],
-        ["roblox:game", async (card, forceRefresh) => resolveRobloxGame(card.reference, forceRefresh)]
+        ["roblox:game", async (card, forceRefresh) => resolveRobloxGame(card.reference, forceRefresh)],
+        ["codex:reset", async (card, forceRefresh) => resolveCodexReset(card.reference, forceRefresh)]
     ]);
 
     async function handler(req, res) {

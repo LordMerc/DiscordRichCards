@@ -1,8 +1,8 @@
 import type { RichCardDescriptor } from "./types";
 
 export interface ComposerCard {
-    provider: "github" | "roblox";
-    kind: "pr" | "game";
+    provider: "github" | "roblox" | "codex";
+    kind: "pr" | "game" | "reset";
     reference: string;
     url: string;
 }
@@ -10,13 +10,13 @@ export interface ComposerCard {
 export function parseMarkers(content: string): RichCardDescriptor[] {
     // One grammar for every provider; retain the old unwrapped/backtick syntax too.
     // Discord can consume both colons in :github: when it inserts a custom emoji.
-    const pattern = /\[\[richcard(?::(?<provider>[a-z][a-z0-9-]*):|<a?:(?<emojiProvider>[a-z][a-z0-9-]*):[0-9]{1,20}>)(?<kind>[a-z][a-z0-9-]*):(?<reference>[^\]\r\n]{1,256})\]\]|(?:\[\[|`)?hermes-live:(?<session>[A-Za-z0-9._:-]{1,128})(?:\]\]|`)?/gi;
+    const pattern = /\[\[richcard(?::(?<codexReset>codexreset)|(?::(?<provider>[a-z][a-z0-9-]*):|<a?:(?<emojiProvider>[a-z][a-z0-9-]*):[0-9]{1,20}>)(?<kind>[a-z][a-z0-9-]*):(?<reference>[^\]\r\n]{1,256}))\]\]|(?:\[\[|`)?hermes-live:(?<session>[A-Za-z0-9._:-]{1,128})(?:\]\]|`)?/gi;
     return Array.from(content.matchAll(pattern), match => {
-        const { provider, emojiProvider, kind, reference, session } = match.groups!;
+        const { provider, emojiProvider, kind, reference, session, codexReset } = match.groups!;
         return {
-            provider: session ? "hermes" : (provider ?? emojiProvider).toLowerCase(),
-            kind: session ? "session" : kind.toLowerCase(),
-            reference: session ?? reference,
+            provider: codexReset ? "codex" : session ? "hermes" : (provider ?? emojiProvider).toLowerCase(),
+            kind: codexReset ? "reset" : session ? "session" : kind.toLowerCase(),
+            reference: codexReset ? "today" : session ?? reference,
             rawMarker: match[0]
         };
     });
@@ -33,6 +33,10 @@ export function parseRobloxGameRef(reference: string): number | null {
     if (!/^[1-9][0-9]{0,15}$/.test(reference)) return null;
     const id = Number(reference);
     return Number.isSafeInteger(id) ? id : null;
+}
+
+export function parseCodexResetRef(reference: string) {
+    return reference === "today" ? reference : null;
 }
 
 function pathSegments(pathname: string, count: number) {
@@ -63,10 +67,14 @@ export function parseComposerLink(value: string): ComposerCard | null {
         return parseRobloxGameRef(reference) ? { provider: "roblox", kind: "game", reference, url: url.toString() } : null;
     }
 
+    if (url.hostname === "hascodexratelimitreset.today" && url.pathname === "/" && !url.search && !url.hash) {
+        return { provider: "codex", kind: "reset", reference: "today", url: "https://hascodexratelimitreset.today/" };
+    }
+
     return null;
 }
 
 export function buildComposerInsertion(card: ComposerCard, includeUrl: boolean) {
-    const marker = `[[richcard:${card.provider}:${card.kind}:${card.reference}]]`;
+    const marker = card.provider === "codex" ? "[[richcard:codexreset]]" : `[[richcard:${card.provider}:${card.kind}:${card.reference}]]`;
     return includeUrl ? `${marker} ${card.url} ` : `${marker} `;
 }

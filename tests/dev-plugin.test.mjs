@@ -23,5 +23,8 @@ test("development plugin has separate identity, cache, styles and marker grammar
     assert.equal(parseMarkers("[[richcard-dev:roblox:game:129932912185311]]").length, 1);
     assert.equal(parseMarkers("[[richcard-dev<:roblox:123>game:129932912185311]]").length, 1);
     for (const marker of ["[[richcard:roblox:game:1]]", "[[richcard:github:pr:a/b#1]]", "hermes-live:demo", "[[hermes-live:demo]]"]) assert.equal(parseMarkers(marker).length, 0, marker);
+    assert.equal(parseMarkers("[[richcard-dev:codexreset]]")[0]?.reference, "today");
+    assert.equal(parseMarkers("[[richcard:codexreset]]").length, 0);
+    assert.equal(buildComposerInsertion(parseComposerLink("https://hascodexratelimitreset.today/"), false), "[[richcard-dev:codexreset]] ");
     assert.match(buildComposerInsertion(parseComposerLink("https://github.com/LordMerc/DiscordRichCards/pull/2"), false), /^\[\[richcard-dev:github:pr:/);
 });
