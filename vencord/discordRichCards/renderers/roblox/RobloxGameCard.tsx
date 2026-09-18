@@ -1,5 +1,6 @@
 import { useState } from "@webpack/common";
 import { CardShell } from "../../components/CardShell";
+import { RobloxEventsSection } from "./RobloxEventsSection";
 import { useCard } from "../../useCard";
 import { validateRoblox } from "../../validation";
 import { parseRobloxGameRef } from "../../marker";
@@ -40,6 +41,7 @@ export function RobloxGameCard({ descriptor }: { descriptor: RichCardDescriptor;
             </dl>
             <p className="rich-card-roblox-availability">{data.statusReason}</p>
         </div>
+        <RobloxEventsSection data={data} />
         {error && <div className="hermes-live-error" role="status">{error}</div>}
         {notice && <div className="hermes-live-loading" role="status">{notice}</div>}
         <div className="hermes-live-footer">

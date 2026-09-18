@@ -465,3 +465,18 @@
 
 .rich-card-about { display: flex; align-items: center; gap: 10px; }
 .rich-card-about > a:last-child { color: var(--text-link); }
+
+.rich-card-section { margin: 0 18px 16px 20px; padding-top: 16px; border-top: 1px solid #353944; min-width: 0; }
+.rich-card-section-title { margin: 0 0 12px; color: #d6dbe6; font-size: 13px; font-weight: 700; }
+.rich-card-section-notice { margin: 0 0 10px; color: #aeb7c7; font-size: 12px; line-height: 1.5; }
+.rich-card-events { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.rich-card-event { min-width: 0; }
+.rich-card-event-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.rich-card-event-status { flex-shrink: 0; color: #d6dbe6; font-size: 11px; font-weight: 700; }
+.rich-card-event-status[data-live="true"] { color: #63e69a; }
+.rich-card-event-title { color: #f4f6fb; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.rich-card-event-time { margin-top: 5px; color: #aeb7c7; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.rich-card-events-more { margin-top: 12px; }
+.rich-card-events-more > summary { cursor: pointer; padding: 8px 0; color: #d6dbe6; font-size: 12px; }
+.rich-card-events-more > summary:focus-visible { outline: 2px solid #c6beff; outline-offset: 3px; }
+.rich-card-events-more[open] > summary { margin-bottom: 8px; }

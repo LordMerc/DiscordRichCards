@@ -1,5 +1,6 @@
 import http from "node:http";
 import { safeRobloxImageUrl } from "./robloxImages.mjs";
+import { currentRobloxEvents, normalizeRobloxEvents } from "./robloxEvents.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -434,6 +435,32 @@ export function createBridge(options = {}) {
         return { iconUrl, thumbnailUrl, expiresAt: config.now() + (complete ? 300000 : 60000) };
     }
 
+    async function fetchRobloxEvents(universeId, parentSignal, existing, forceRefresh) {
+        const cached = {
+            events: currentRobloxEvents(existing?.data?.events ?? [], config.now()),
+            status: existing?.data?.eventsStatus ?? "unavailable",
+            truncated: existing?.data?.eventsTruncated ?? false,
+            expiresAt: existing?.eventsExpiresAt ?? 0,
+            retryAt: existing?.eventsRetryAt ?? 0
+        };
+        if (cached.retryAt > config.now() || (!forceRefresh && cached.expiresAt > config.now())) return cached;
+        const signal = AbortSignal.any([parentSignal, AbortSignal.timeout(2000)]);
+        try {
+            const events = new Map();
+            let cursor = "";
+            // Bound pagination and share one timeout across all pages.
+            for (let page = 0; page < 5; page++) {
+                const raw = await fetchRobloxJson(`https://apis.roblox.com/virtual-events/v1/universes/${universeId}/virtual-events${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, signal, "events");
+                for (const event of normalizeRobloxEvents(raw, universeId)) events.set(event.id, event);
+                cursor = raw.nextPageCursor || "";
+                if (!cursor) break;
+            }
+            return { events: currentRobloxEvents([...events.values()], config.now()), status: "ready", truncated: !!cursor, expiresAt: config.now() + 300000, retryAt: 0 };
+        } catch {
+            return { ...cached, status: existing?.data?.eventsStatus && existing.data.eventsStatus !== "unavailable" ? "stale" : "unavailable", expiresAt: 0, retryAt: config.now() + 60000 };
+        }
+    }
+
     async function resolveRobloxGame(reference, forceRefresh) {
         const placeId = parseRobloxPlaceReference(reference);
         const key = `roblox:game:${placeId}`;
@@ -470,12 +497,14 @@ export function createBridge(options = {}) {
                 )).universeId);
                 if (!universeId) throw new HttpError(502, "Roblox returned an invalid game response");
 
-                const [detailsResult, universeResult, artworkResult] = await Promise.allSettled([
+                const [detailsResult, universeResult, artworkResult, eventsResult] = await Promise.allSettled([
                     fetchRobloxJson(`https://games.roblox.com/v1/games?universeIds=${universeId}`, controller.signal, "game").then(raw => normalizeRobloxDetails(raw, universeId)),
                     fetchRobloxJson(`https://develop.roblox.com/v1/universes/${universeId}`, controller.signal, "universe").then(raw => normalizeRobloxUniverse(raw, universeId)),
-                    fetchRobloxArtwork(universeId, controller.signal, existing)
+                    fetchRobloxArtwork(universeId, controller.signal, existing),
+                    fetchRobloxEvents(universeId, controller.signal, existing, forceRefresh)
                 ]);
                 const artwork = artworkResult.status === "fulfilled" ? artworkResult.value : { iconUrl: null, thumbnailUrl: null, expiresAt: 0 };
+                const events = eventsResult.status === "fulfilled" ? eventsResult.value : { events: [], status: "unavailable", truncated: false, expiresAt: 0, retryAt: config.now() + 60000 };
                 const details = detailsResult.status === "fulfilled" ? detailsResult.value : null;
                 const universe = universeResult.status === "fulfilled" ? universeResult.value : null;
                 const rateLimited = [detailsResult, universeResult].find(result => result.status === "rejected" && result.reason instanceof HttpError && result.reason.status === 429);
@@ -499,7 +528,10 @@ export function createBridge(options = {}) {
                     statusReason: universe?.statusReason ?? "Roblox availability could not be confirmed",
                     updatedAt: details?.updatedAt || universe?.updatedAt || "",
                     iconUrl: artwork.iconUrl,
-                    thumbnailUrl: artwork.thumbnailUrl
+                    thumbnailUrl: artwork.thumbnailUrl,
+                    events: events.events,
+                    eventsStatus: events.status,
+                    eventsTruncated: events.truncated
                 };
                 const entry = {
                     key,
@@ -509,6 +541,8 @@ export function createBridge(options = {}) {
                     fetchedAt: config.now(),
                     refreshAfterMs: ROBLOX_GAME_TTL_MS,
                     artworkExpiresAt: artwork.expiresAt,
+                    eventsExpiresAt: events.expiresAt,
+                    eventsRetryAt: events.retryAt,
                     lastAttemptAt: attemptAt,
                     lastManualAttemptAt,
                     warning: warnings.length ? warnings.join("; ") : undefined

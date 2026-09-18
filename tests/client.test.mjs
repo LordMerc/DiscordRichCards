@@ -4,6 +4,7 @@ import { parseMarkers, parseGitHubPRRef, parseRobloxGameRef } from "../vencord/d
 import { startPolling } from "../vencord/discordRichCards/polling.ts";
 import { validateHermes, validateGitHub, validateRoblox } from "../vencord/discordRichCards/validation.ts";
 import { MANUAL_REFRESH_COOLDOWN_MS, getManualRefreshCooldownRemaining, getRefreshLabel } from "../vencord/discordRichCards/refresh.ts";
+import { currentRobloxEvents } from "../vencord/discordRichCards/bridge/robloxEvents.mjs";
 
 test("durable legacy and generic anchors normalize in message order", () => {
     const cards = parseMarkers("fallback [[hermes-live:demo-001]] [[richcard:github:pr:Vendicated/Vencord#4607]] [[richcard:hermes:session:demo-001]]");
@@ -65,6 +66,11 @@ test("Discord custom emoji substitution preserves the GitHub provider delimiter"
     for (const value of ["0", "01", "-1", "9007199254740992", "https://roblox.com/games/1", "1?x=2"]) assert.equal(parseRobloxGameRef(value), null);
     const data = {placeId: 129932912185311, universeId: 8946565814, name: "Anime Origins", creator: "Origins Project", playing: 1234, favorites: 25000, visits: null, status: "open", statusReason: "Public and active", updatedAt: "2026-09-17T00:00:00Z"};
     assert.equal(validateRoblox(data), true);
+    const event = { id: "4943114036414907040", title: "Update", startsAt: "2026-09-18T12:00:00Z", endsAt: "2026-09-19T12:00:00Z" };
+    assert.equal(validateRoblox({...data, events: [event], eventsStatus: "ready", eventsTruncated: false}), true);
+    for (const fields of [{events: {}}, {events: [{...event, id: "javascript:alert(1)"}]}, {events: [{...event, endsAt: event.startsAt}]}, {eventsStatus: "bogus"}, {eventsTruncated: "yes"}]) {
+        assert.equal(validateRoblox({...data, ...fields}), false);
+    }
     assert.equal(validateRoblox({...data, playing: null, status: "private"}), true);
     for (const invalid of [{playing: -1}, {favorites: "2"}, {visits: 1.2}, {status: "GuestProhibited"}, {placeId: 0}, {iconUrl: "http://tr.rbxcdn.com/icon"}, {thumbnailUrl: "https://rbxcdn.com.evil.example/image"}, {iconUrl: "https://user:pass@tr.rbxcdn.com/icon"}]) assert.equal(validateRoblox({...data, ...invalid}), false);
 });
@@ -77,4 +83,13 @@ test("manual refresh labels hold a five-second cooldown independently of request
     assert.equal(getRefreshLabel(false, getManualRefreshCooldownRemaining(until, now + 1_001)), "Refresh (4s)");
     assert.equal(getRefreshLabel(true, getManualRefreshCooldownRemaining(until, until)), "Refreshing…");
     assert.equal(getRefreshLabel(false, getManualRefreshCooldownRemaining(until, until)), "Refresh");
+});
+
+test("cached Roblox schedules expire at their end time without a new upstream response", () => {
+    const live = { id: "1", title: "Live", startsAt: "2026-09-18T11:00:00Z", endsAt: "2026-09-18T13:00:00Z" };
+    const upcoming = { id: "2", title: "Next", startsAt: "2026-09-18T14:00:00Z", endsAt: "2026-09-18T15:00:00Z" };
+    const cached = [upcoming, live];
+    assert.deepEqual(currentRobloxEvents(cached, Date.parse("2026-09-18T12:00:00Z")).map(e => e.id), ["1", "2"]);
+    assert.deepEqual(currentRobloxEvents(cached, Date.parse("2026-09-18T13:00:00Z")).map(e => e.id), ["2"]);
+    assert.deepEqual(cached.map(e => e.id), ["2", "1"], "rendering does not mutate the shared cache");
 });

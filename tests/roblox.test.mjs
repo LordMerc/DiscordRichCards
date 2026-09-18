@@ -55,6 +55,7 @@ function publicUniverse(overrides = {}) {
 
 function robloxFetch(calls, options = {}) {
     return async (url, requestOptions) => {
+        if (url.includes("/virtual-events/")) return response(200, { data: [], nextPageCursor: "" });
         if (url.startsWith("https://thumbnails.roblox.com/")) return response(200, {data:[]});
         calls.push({ url, ...requestOptions });
         if (options.fail) throw new Error("network unavailable");
@@ -82,6 +83,9 @@ test("Roblox game cards use public game and universe data without treating guest
         visits: 25604812,
         iconUrl: null,
         thumbnailUrl: null,
+        events: [],
+        eventsStatus: "ready",
+        eventsTruncated: false,
         status: "open",
         statusReason: "This experience is public and active",
         updatedAt: "2026-09-11T14:38:15.766Z"
@@ -168,6 +172,7 @@ test("concurrent Roblox card requests share one upstream refresh", async t => {
     const base = await running(t, {
         dataFile: tempDataFile(t),
         fetch: async (url, options) => {
+            if (url.includes("/virtual-events/")) return response(200, { data: [], nextPageCursor: "" });
             if (url.startsWith("https://thumbnails.roblox.com/")) return response(200, {data:[]});
             calls.push({ url, ...options });
             if (url === `https://apis.roblox.com/universes/v1/places/${placeId}/universe`) return response(200, { universeId });
@@ -195,6 +200,7 @@ test("a partial Roblox rate limit backs off cached cards for one minute", async 
         dataFile: tempDataFile(t),
         now: () => now,
         fetch: async (url, options) => {
+            if (url.includes("/virtual-events/")) return response(200, { data: [], nextPageCursor: "" });
             if (url.startsWith("https://thumbnails.roblox.com/")) return response(200, {data:[]});
             calls.push({ url, ...options });
             if (url === `https://apis.roblox.com/universes/v1/places/${placeId}/universe`) return response(200, { universeId });
@@ -274,4 +280,63 @@ test("Roblox artwork uses completed CDN images, caches them, and degrades indepe
     result = await (await fetch(route)).json();
     assert.equal(result.data.playing, 1334, "artwork failure does not fail counters");
     assert.equal(result.data.status, "open");
+});
+
+test("Roblox events filter public live/upcoming entries, paginate, and fail independently of stats", async t => {
+    let now = Date.parse("2026-09-18T12:00:00Z");
+    let mode = "ok";
+    let eventCalls = 0;
+    const event = (id, start, end, extra = {}) => ({
+        id, title: `Event ${id}`, universeId, eventStatus: "active", eventVisibility: "public",
+        eventTime: { startUtc: start, endUtc: end }, ...extra
+    });
+    const live = event("4943114036414907040", "2026-09-18T11:00:00Z", "2026-09-18T13:00:00Z");
+    const upcoming = event("4943114036414907041", "2026-09-19T11:00:00Z", "2026-09-19T13:00:00Z");
+    const base = await running(t, { dataFile: tempDataFile(t), now: () => now, fetch: async (url, opts) => {
+        if (!url.includes("/virtual-events/")) return robloxFetch([])(url, opts);
+        eventCalls++;
+        assert.equal(opts.headers.authorization, undefined);
+        assert.equal(opts.redirect, "error");
+        if (mode === "limited") return response(429, {});
+        if (mode === "empty") return response(200, { data: [], nextPageCursor: "" });
+        if (mode === "malformed") return response(200, {});
+        if (url.endsWith("?cursor=next%2Fpage")) return response(200, { data: [live], nextPageCursor: "" });
+        assert.equal(url, `https://apis.roblox.com/virtual-events/v1/universes/${universeId}/virtual-events`);
+        return response(200, { data: [upcoming,
+            {...live, id: "2", eventVisibility: "private"},
+            {...live, id: "3", eventStatus: "cancelled"},
+            {...live, id: "4", universeId: 1},
+            {...live, id: "5", eventTime: {startUtc: "bad", endUtc: "bad"}},
+            event("6", "2026-09-17T11:00:00Z", "2026-09-18T12:00:00Z")
+        ], nextPageCursor: "next/page" });
+    }});
+    const route = `${base}/api/cards/roblox/game/${placeId}`;
+    let result = await (await fetch(route)).json();
+    assert.deepEqual(result.data.events.map(e => e.id), ["4943114036414907040", "4943114036414907041"]);
+    assert.equal(result.data.events[0].startsAt, "2026-09-18T11:00:00.000Z");
+    assert.equal(result.data.eventsStatus, "ready");
+    now += 30000;
+    await fetch(route);
+    assert.equal(eventCalls, 2, "automatic stats polling reuses events");
+    await fetch(`${route}?refresh=1`);
+    assert.equal(eventCalls, 4, "manual refresh bypasses event TTL");
+    now += 5000;
+    mode = "limited";
+    result = await (await fetch(`${route}?refresh=1`)).json();
+    assert.equal(result.data.eventsStatus, "stale");
+    assert.equal(result.data.events.length, 2);
+    assert.equal(result.data.playing, 1334);
+    now += 5000;
+    await fetch(`${route}?refresh=1`);
+    assert.equal(eventCalls, 5, "events backoff survives manual refresh");
+    now += 60000;
+    mode = "empty";
+    result = await (await fetch(`${route}?refresh=1`)).json();
+    assert.deepEqual(result.data.events, []);
+    assert.equal(result.data.eventsStatus, "ready");
+    now += 5000;
+    mode = "malformed";
+    result = await (await fetch(`${route}?refresh=1`)).json();
+    assert.equal(result.data.eventsStatus, "stale", "malformed response is not an empty success");
+    assert.equal(result.data.playing, 1334);
 });
