@@ -1,5 +1,12 @@
 import type { RichCardDescriptor } from "./types";
 
+export interface ComposerCard {
+    provider: "github" | "roblox";
+    kind: "pr" | "game";
+    reference: string;
+    url: string;
+}
+
 export function parseMarkers(content: string): RichCardDescriptor[] {
     // One grammar for every provider; retain the old unwrapped/backtick syntax too.
     // Discord can consume both colons in :github: when it inserts a custom emoji.
@@ -26,4 +33,40 @@ export function parseRobloxGameRef(reference: string): number | null {
     if (!/^[1-9][0-9]{0,15}$/.test(reference)) return null;
     const id = Number(reference);
     return Number.isSafeInteger(id) ? id : null;
+}
+
+function pathSegments(pathname: string, count: number) {
+    const segments = pathname.split("/").filter(Boolean);
+    return segments.length === count ? segments : null;
+}
+
+export function parseComposerLink(value: string): ComposerCard | null {
+    let url: URL;
+    try {
+        url = new URL(value.trim());
+    } catch {
+        return null;
+    }
+    if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
+
+    if (url.hostname === "github.com") {
+        const parts = pathSegments(url.pathname, 4);
+        if (!parts || parts[2] !== "pull") return null;
+        const reference = `${parts[0]}/${parts[1]}#${parts[3]}`;
+        return parseGitHubPRRef(reference) ? { provider: "github", kind: "pr", reference, url: url.toString() } : null;
+    }
+
+    if (url.hostname === "www.roblox.com" || url.hostname === "roblox.com") {
+        const parts = pathSegments(url.pathname, 2) ?? pathSegments(url.pathname, 3);
+        if (!parts || parts[0] !== "games") return null;
+        const reference = parts[1];
+        return parseRobloxGameRef(reference) ? { provider: "roblox", kind: "game", reference, url: url.toString() } : null;
+    }
+
+    return null;
+}
+
+export function buildComposerInsertion(card: ComposerCard, includeUrl: boolean) {
+    const marker = `[[richcard:${card.provider}:${card.kind}:${card.reference}]]`;
+    return includeUrl ? `${marker} ${card.url} ` : `${marker} `;
 }

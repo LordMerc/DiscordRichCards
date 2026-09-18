@@ -26,7 +26,8 @@ export function generateDevPlugin(destination) {
             if (entry.name === "marker.ts") {
                 if (!text.includes("richcard(?")) throw new Error("Marker grammar changed; update development generator");
                 text = text.replace("richcard(?", "richcard-dev(?")
-                    .replace("hermes-live:(?<session>", "(?!)hermes-live:(?<session>");
+                    .replace("hermes-live:(?<session>", "(?!)hermes-live:(?<session>")
+                    .replaceAll("[[richcard:", "[[richcard-dev:");
             }
             writeFileSync(dest, text);
         }

@@ -466,6 +466,13 @@
 .rich-card-about { display: flex; align-items: center; gap: 10px; }
 .rich-card-about > a:last-child { color: var(--text-link); }
 
+.rich-card-composer-field { margin-bottom: 16px; }
+.rich-card-composer-checkbox { display: flex; align-items: center; gap: 8px; color: var(--text-normal); cursor: pointer; font-size: 14px; }
+.rich-card-composer-checkbox input { width: 16px; height: 16px; accent-color: var(--brand-500); }
+.rich-card-composer-preview { margin-top: 20px; }
+.rich-card-composer-preview > p { margin: 6px 0 12px; color: var(--text-muted); font-size: 12px; }
+.rich-card-composer-preview .hermes-live-card { margin-top: 0; }
+
 .rich-card-section { margin: 0 18px 16px 20px; padding-top: 16px; border-top: 1px solid #353944; min-width: 0; }
 .rich-card-section-title { margin: 0 0 12px; color: #d6dbe6; font-size: 13px; font-weight: 700; }
 .rich-card-section-notice { margin: 0 0 10px; color: #aeb7c7; font-size: 12px; line-height: 1.5; }
