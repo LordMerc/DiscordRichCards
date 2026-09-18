@@ -1,5 +1,16 @@
 # Validation
 
+## Provider expansion — 2026-09-18
+
+- `node --test tests/*.test.mjs`: 60 passed, 0 failed. Includes existing providers plus new provider fixtures, canonical link parsing, presence expiry, encrypted connection storage, durable paid-request budget, bounded HTTP/Minecraft transports and credential clearing.
+- `node scripts/build.mjs --dev-plugin` with `VENCORD_PATH=C:\Users\brand\Vencord`: isolated Vencord build and TypeScript check passed. Normal filesystem execution was required after the sandbox blocked esbuild traversal. The isolated build does not change the installed checkout. The Dev plugin was subsequently installed and rebuilt with user authorization; stable source and settings were preserved.
+- `powershell -ExecutionPolicy Bypass -File scripts/package.ps1`: source archive generated; inspected for the new adapter/guide and absence of local profile/cache files, dependencies, builds and AGENTS.md.
+- Live public smoke checks: Steam app 730 resolved to Counter-Strike 2, player count and allowed artwork; GitHub's Statuspage returned normalized service status. No paid X request or authenticated provider call was made.
+- Independent critical review: PASS after durable X-budget, credential-clear and quote/media-reference corrections. Linux insecure-storage fallback is rejected and regression-tested.
+- Live Dev verification: the user confirmed Steam rendering and numeric formatting, unauthenticated local Dockhand rendering, and the Roblox event-label spacing fix. Native Dockhand reads verified container details and recorded pending updates. The card labels container creation and update-check times separately; it does not claim a deployment timestamp or trigger updates.
+- Spotify self-listening now uses LocalActivityStore while other users use PresenceStore; selection and expiry are fixture-tested. Its live behavior after that fix is not yet explicitly confirmed. Authenticated Spotify/Twitch/YouTube/X responses, Dockhand authenticated login, and live FiveM/Minecraft hosts remain unverified. No paid X calls were made.
+- Follow-up independent reviews passed for optional Dockhand authentication, container metadata, Spotify activity selection, and Roblox event presentation. Native changes require a full Discord restart; CSS-only spacing changes were tested after reload.
+
 Run `node --test tests/*.test.mjs` for the zero-dependency Node test suite.
 
 Coverage includes marker compatibility and emoji substitution, polling cleanup/re-entry, response validation, Hermes publisher/action round trips, bridge authorization, malformed persisted state, GitHub caching/ETags/manual refresh/backoff, and embedded bridge lifecycle and persistence.

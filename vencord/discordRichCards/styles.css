@@ -501,14 +501,65 @@
 .rich-card-section { margin: 0 18px 16px 20px; padding-top: 16px; border-top: 1px solid #353944; min-width: 0; }
 .rich-card-section-title { margin: 0 0 12px; color: #d6dbe6; font-size: 13px; font-weight: 700; }
 .rich-card-section-notice { margin: 0 0 10px; color: #aeb7c7; font-size: 12px; line-height: 1.5; }
-.rich-card-events { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
-.rich-card-event { min-width: 0; }
-.rich-card-event-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
-.rich-card-event-status { flex-shrink: 0; color: #d6dbe6; font-size: 11px; font-weight: 700; }
-.rich-card-event-status[data-live="true"] { color: #63e69a; }
-.rich-card-event-title { color: #f4f6fb; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
-.rich-card-event-time { margin-top: 5px; color: #aeb7c7; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-.rich-card-events-more { margin-top: 12px; }
-.rich-card-events-more > summary { cursor: pointer; padding: 8px 0; color: #d6dbe6; font-size: 12px; }
-.rich-card-events-more > summary:focus-visible { outline: 2px solid #c6beff; outline-offset: 3px; }
-.rich-card-events-more[open] > summary { margin-bottom: 8px; }
+/* Roblox schedule rows need their own opaque surface over experience artwork. */
+.rich-card-roblox .rich-card-events { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.rich-card-roblox .rich-card-event { min-width: 0; padding: 11px 12px; border: 1px solid rgba(193, 205, 221, .16); border-radius: 10px; background: rgba(9, 12, 17, .82); box-shadow: inset 0 1px rgba(255, 255, 255, .035); }
+.rich-card-roblox .rich-card-event-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 9px; }
+.rich-card-roblox .rich-card-event-status { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: 20px; padding: 0 7px; border: 1px solid rgba(120, 181, 255, .48); border-radius: 999px; color: #b8dcff; background: rgba(56, 123, 199, .25); font-size: 10px; font-weight: 750; letter-spacing: .035em; line-height: 1; text-transform: uppercase; white-space: nowrap; }
+.rich-card-roblox .rich-card-event-status[data-live="true"] { border-color: rgba(97, 230, 154, .5); color: #90f1b7; background: rgba(39, 139, 88, .27); }
+.rich-card-roblox .rich-card-event-title { min-width: 0; color: #f7f9fd; font-size: 13px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+.rich-card-roblox .rich-card-event-time { display: grid; gap: 3px; margin-top: 8px; color: #c5cfdd; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.rich-card-roblox .rich-card-event-date-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 7px; }
+.rich-card-roblox .rich-card-event-date-label { flex: 0 0 46px; white-space: nowrap; color: #8f9daf; font-size: 10px; font-weight: 700; letter-spacing: .045em; text-transform: uppercase; }
+.rich-card-roblox .rich-card-event-date-line time { color: #dce4ef; font-variant-numeric: tabular-nums; }
+.rich-card-roblox .rich-card-events-more { margin-top: 10px; }
+.rich-card-roblox .rich-card-events-more > summary { cursor: pointer; padding: 8px 0; color: #d6dbe6; font-size: 12px; font-weight: 600; }
+.rich-card-roblox .rich-card-events-more > summary:focus-visible { outline: 2px solid #c6beff; outline-offset: 3px; }
+.rich-card-roblox .rich-card-events-more[open] > summary { margin-bottom: 8px; }
+
+/* New provider cards share a compact media-and-status layout. */
+.rich-card-summary { --summary-accent: #9cb4c9; }
+.rich-card-summary-spotify { --summary-accent: #69df97; }
+.rich-card-summary-twitch { --summary-accent: #c4a5fb; }
+.rich-card-summary-youtube { --summary-accent: #ffa09e; }
+.rich-card-summary-steam { --summary-accent: #92cafa; }
+.rich-card-summary-dockhand, .rich-card-summary-statuspage { --summary-accent: #78d6d0; }
+.rich-card-summary-fivem, .rich-card-summary-minecraft { --summary-accent: #f1c581; }
+.rich-card-summary::before { background: var(--summary-accent); }
+.rich-card-summary-heading { display: flex; align-items: center; gap: 14px; padding: 20px; flex-wrap: wrap; }
+.rich-card-summary-art { display: grid; place-items: center; width: 72px; height: 72px; flex: 0 0 72px; overflow: hidden; border: 1px solid #414954; border-radius: 12px; background: #252b34; color: var(--summary-accent); font-size: 30px; font-weight: 750; }
+.rich-card-summary-art img { width: 100%; height: 100%; object-fit: cover; }
+.rich-card-summary-heading-text { flex: 1 1 170px; min-width: 0; }
+.rich-card-summary-title { font-size: 19px; font-weight: 750; color: #f5f7fb; line-height: 1.35; overflow-wrap: anywhere; margin-top: 4px; }
+.rich-card-summary-subtitle { color: #bdc6d5; font-size: 13px; line-height: 1.5; margin-top: 4px; overflow-wrap: anywhere; }
+.rich-card-summary-status { border: 1px solid #53616f; background: #262f3b; border-radius: 6px; padding: 5px 8px; font-size: 11px; font-weight: 700; color: #d3dde7; max-width: 100%; overflow-wrap: anywhere; }
+.rich-card-summary-status[data-state="live"], .rich-card-summary-status[data-state="healthy"], .rich-card-summary-status[data-state="online"] { color: #8ceab3; border-color: #426650; background: #20342a; }
+.rich-card-summary-status[data-state="outage"] { color: #ffb2b5; border-color: #765057; background: #3b262d; }
+.rich-card-summary-status[data-state="degraded"] { color: #ffdb9c; border-color: #76634b; background: #3a3022; }
+.rich-card-summary-body { padding: 0 20px 18px; }
+.rich-card-summary-description { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: #d3dae6; line-height: 1.6; font-size: 14px; max-height: 260px; overflow-y: auto; }
+.rich-card-summary-metrics { display: flex; flex-wrap: wrap; gap: 16px 28px; margin: 18px 0 0; }
+.rich-card-summary-metrics dt { color: #aeb9c8; font-size: 11px; margin-bottom: 6px; }
+.rich-card-summary-metrics dd { color: var(--summary-accent); font-size: 21px; line-height: 1.3; font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; overflow-wrap: anywhere; }
+.rich-card-summary-empty { padding: 20px; line-height: 1.6; color: #e6ebf2; }
+.rich-card-summary-empty p { margin: 8px 0 0; font-size: 12px; color: #b7c2d2; }
+.rich-card-summary .hermes-live-footer { flex-wrap: wrap; gap: 12px; }
+.rich-card-summary .hermes-live-session { white-space: normal; }
+.rich-card-listening-progress { padding: 0 20px 18px; }
+.rich-card-listening-progress progress { display: block; width: 100%; height: 6px; accent-color: #69df97; }
+.rich-card-listening-progress > div { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: #bcc7d6; font-variant-numeric: tabular-nums; }
+.rich-card-composer-select { display: grid; gap: 8px; margin-bottom: 16px; color: var(--text-normal); font-size: 14px; }
+.rich-card-composer-select select { width: 100%; min-height: 40px; background: var(--input-background, #20232b); color: var(--text-normal); border: 1px solid var(--border-subtle, #424a56); border-radius: 6px; padding: 8px; }
+.rich-card-composer-select span { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.rich-card-composer-select select:focus-visible { outline: 2px solid #9fd2ff; outline-offset: 2px; }
+.rich-card-container-details { padding: 0 20px 18px; }
+.rich-card-container-list { display: grid; gap: 8px; list-style: none; padding: 0; margin: 0; }
+.rich-card-container-list > li { padding: 12px; border: 1px solid #ffffff14; border-radius: 8px; background: #10151dcc; overflow-wrap: anywhere; }
+.rich-card-container-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; color: #f0f3f8; }
+.rich-card-container-list p { margin: 6px 0; font-size: 12px; color: #c9d2df; }
+.rich-card-container-list code { display: block; font-size: 11px; color: #a8b7c9; white-space: normal; }
+.rich-card-container-update { margin-top: 10px; font-size: 12px; color: #b9c5d4; }
+.rich-card-container-update[data-update="available"] { color: #ffd38b; font-weight: 700; }
+.rich-card-container-dates { display: grid; gap: 4px; margin-top: 8px; font-size: 11px; line-height: 1.5; color: #aebbc9; font-variant-numeric: tabular-nums; }
+.rich-card-container-details summary { cursor: pointer; padding: 10px 0; color: #c9d2df; font-size: 12px; }
+.rich-card-container-details summary:focus-visible { outline: 2px solid #9fd2ff; outline-offset: 2px; }

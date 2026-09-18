@@ -1,5 +1,7 @@
 # Discord RichCards
 
+New cards include FiveM/Minecraft servers, Spotify tracks/playlists/live listening, Twitch, Steam, YouTube Live, X, and service status including local Dockhand. Configure the plugin's **Connections** panel, then select links or saved profiles in **Create RichCard**. See [setup and limitations](vencord/discordRichCards/CONNECTIONS.md). API integrations need your own credentials; X paid reads require opt-in and manual refresh.
+
 Live cards anchored to ordinary Discord messages. The Vencord plugin re-fetches authoritative bridge state whenever an anchor remounts. Hermes retains its installed high-contrast stylesheet, animations, activity details and pause/resume/cancel controls. GitHub PR and Roblox game cards are read-only.
 
 Public GitHub and Roblox cards work as soon as the plugin is enabled in desktop Vencord. The plugin runs its built-in bridge inside Discord, starts it automatically, and stops it when disabled or when Discord exits. No separate Node installation, bridge terminal, URL or token is required for public cards. Vencord custom plugins still require copying the plugin source into a Vencord checkout and building it.
