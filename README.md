@@ -1,14 +1,14 @@
 # Discord RichCards
 
-Live cards anchored to ordinary Discord messages. The Vencord plugin re-fetches authoritative bridge state whenever an anchor remounts. Hermes retains its installed high-contrast stylesheet, animations, activity details and pause/resume/cancel controls. GitHub PR cards are read-only.
+Live cards anchored to ordinary Discord messages. The Vencord plugin re-fetches authoritative bridge state whenever an anchor remounts. Hermes retains its installed high-contrast stylesheet, animations, activity details and pause/resume/cancel controls. GitHub PR and Roblox game cards are read-only.
 
-Public GitHub cards work as soon as the plugin is enabled in desktop Vencord. The plugin runs its built-in bridge inside Discord, starts it automatically, and stops it when disabled or when Discord exits. No separate Node installation, bridge terminal, URL or token is required for public PRs. Vencord custom plugins still require copying the plugin source into a Vencord checkout and building it.
+Public GitHub and Roblox cards work as soon as the plugin is enabled in desktop Vencord. The plugin runs its built-in bridge inside Discord, starts it automatically, and stops it when disabled or when Discord exits. No separate Node installation, bridge terminal, URL or token is required for public cards. Vencord custom plugins still require copying the plugin source into a Vencord checkout and building it.
 
 The built-in bridge uses a random loopback port and a fresh private bearer token for each run. Its cache persists under `Vencord/discord-richcards/cards.json` in your user-data directory. The port and token stay in the native process. Optional GitHub credentials use `RICHCARDS_GITHUB_TOKEN` in Discord's environment; see `GITHUB.md`.
 
 ## Optional external bridge / Hermes setup
 
-Hermes needs an external bridge and publisher. Public GitHub cards do not need this section. Enable **Use an external bridge for GitHub** only if you deliberately want all GitHub requests handled by your own server. External mode and Hermes use the existing Bridge URL, bearer token and TLS settings.
+Hermes needs an external bridge and publisher. Public GitHub and Roblox cards do not need this section. Enable **Use an external bridge for GitHub and Roblox** only if you deliberately want their requests handled by your own server. External mode and Hermes use the existing Bridge URL, bearer token and TLS settings.
 
 Stop the old bridge before starting this one on the same port. Use the existing data file to retain your Hermes sessions; do not run both processes against that file. Back it up first while the old bridge is stopped.
 
@@ -23,7 +23,7 @@ The default address is `http://127.0.0.1:8787`. Existing `HERMES_LIVE_HOST`, `HE
 
 ## Build and install
 
-The complete source is in `vencord/discordRichCards`, including the bridge. Copy the entire folder. Enable **DiscordRichCards** after building and restarting Discord. Disable HermesLive to avoid duplicate Hermes cards; if you use Hermes, copy its external bridge settings into DiscordRichCards. Public GitHub needs no settings.
+The complete source is in `vencord/discordRichCards`, including the bridge. Copy the entire folder. Enable **DiscordRichCards** after building and restarting Discord. Disable HermesLive to avoid duplicate Hermes cards; if you use Hermes, copy its external bridge settings into DiscordRichCards. Public GitHub and Roblox need no settings.
 
 ```powershell
 # Run from the cloned DiscordRichCards repository.
@@ -92,3 +92,50 @@ See `PROTOCOL.md` for integration details and `GITHUB.md` for credentials and re
 ## Author
 
 [LordMerc](https://github.com/LordMerc) · Discord ID: `326081760108740608`
+
+## Roblox game cards
+
+Use the place ID from a Roblox game URL:
+
+```text
+https://www.roblox.com/games/129932912185311/Anime-Origins
+[[richcard:roblox:game:129932912185311]]
+```
+
+Cards show playing now, favorites, visits, creator and public availability. Counts refresh every 30 seconds while visible; Refresh requests fresh data immediately, with a five-second repeat gate. Roblox may itself cache counters. Unavailable counts show an em dash, never a fabricated zero.
+
+Availability uses public universe metadata: **Open** means public and active; **Private** means Roblox explicitly reports private; **Locked** means archived or inactive. Locked does not necessarily mean moderated. **Unknown** means Roblox did not provide enough information. This is not a guarantee that a particular account, age group, region or device can join. No Roblox login, cookie or Studio connection is used. A guest sign-in requirement is not treated as a private game.
+
+Sources: [Roblox Games API](https://create.roblox.com/docs/cloud/reference/domains/games) and [universe API reference](https://create.roblox.com/docs/cloud/reference/features/universes). The public Develop endpoint is experimental and may change.
+
+## Development plugin alongside stable
+
+Run these from the feature worktree:
+
+```powershell
+node --test tests/*.test.mjs
+node scripts/build.mjs --dev-plugin
+node scripts/dev-plugin.mjs --install
+$vencord = if ($env:VENCORD_PATH) { $env:VENCORD_PATH } else { Join-Path $env:USERPROFILE 'Vencord' }
+Push-Location $vencord
+pnpm build --dev
+Pop-Location
+```
+
+Fully restart Discord, then enable **DiscordRichCardsDev**. Stable **DiscordRichCards** can remain enabled. The generated dev plugin has independent settings, native helper, message accessory, styles and cache (`Vencord/discord-richcards-dev/cards.json`). It only recognizes `richcard-dev` markers and ignores legacy Hermes anchors. Example:
+
+```text
+[[richcard-dev:roblox:game:129932912185311]]
+```
+
+Edit the worktree source, then regenerate, rebuild and restart for each native change. Do not edit the generated installed dev folder. Disable DiscordRichCardsDev to stop development cards and its bridge; stable settings and data remain intact. Publishing the GitHub repository does not require reinstalling or replacing a matching stable plugin.
+
+### Artwork and Refresh controls
+
+Roblox cards display the game icon and the first thumbnail behind a dark overlay. Images come from [Roblox's public Thumbnails API](https://create.roblox.com/docs/cloud/reference/features/thumbnails); only completed HTTPS Roblox CDN images are accepted. Artwork is cached for five minutes (missing or failed artwork retries after one minute), independently of live stats. Missing or broken images fall back to the plain card.
+
+All card types—Roblox, GitHub and Hermes—use the same five-second manual Refresh button cooldown, counted from the click, with a visible countdown. Failed or fast requests do not bypass it; requests lasting longer keep the button disabled until finished. Automatic polling continues on its normal schedule. These shared changes are currently installed in the development variant; the stable installed plugin is unchanged pending feature integration.
+
+The native plugin registers an image-only content-security-policy allowance for Roblox's HTTPS CDN through Vencord's supported `CspPolicies` API. A full Discord restart is required after first installing this change. It does not enable CDN scripts or renderer API connections.
+
+The plugin's info dialog includes a GitHub repository button below Authors. Vencord reserves its header source/website row for built-in plugins; custom plugins use `settingsAboutComponent` instead. In development, open **DiscordRichCardsDev** to see the updated info section; the link still points to the canonical DiscordRichCards repository.

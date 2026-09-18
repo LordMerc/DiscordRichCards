@@ -13,4 +13,6 @@ GitHub is read-only. Refresh bypasses ordinary cached data; repeated refreshes m
 
 Hermes is optional and still needs an external bridge/publisher. Its URL and token are configured in plugin settings. Legacy `[[hermes-live:ID]]` and generic `[[richcard:hermes:session:ID]]` markers work. Disable HermesLive if installed to avoid duplicate cards.
 
-Enable **Use an external bridge for GitHub** to use a separately hosted server instead of the built-in bridge. Restart Discord after changing that option.
+Enable **Use an external bridge for GitHub and Roblox** to use a separately hosted server instead of the built-in bridge. Restart Discord after changing that option.
+
+Roblox: `[[richcard:roblox:game:129932912185311]]` shows player/favorite/visit counts every 30 seconds with no setup. Availability uses public metadata (open, private, archived/inactive as locked, or unknown); account-specific join restrictions cannot be determined. Missing counters show an em dash. The repository README includes the separate DiscordRichCardsDev workflow.

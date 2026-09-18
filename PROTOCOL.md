@@ -11,6 +11,7 @@ Encode the entire reference as one URL segment:
 ```text
 /api/cards/github/pr/Vendicated%2FVencord%234607
 /api/cards/hermes/session/demo-001
+/api/cards/roblox/game/129932912185311
 ```
 
 Optional `?refresh=1` bypasses normal cache TTL. Repeated manual upstream requests within five seconds return cached data with `refreshDeferredMs`; the client keeps Refresh pending and retries after that delay. Backoff still takes precedence.
@@ -27,7 +28,7 @@ Optional `?refresh=1` bypasses normal cache TTL. Repeated manual upstream reques
 }
 ```
 
-`data` uses the renderer's own schema: `HermesSessionState` or `GitHubPR` in the client source. The client validates payloads before rendering, bounds refresh intervals and has a 10-second native request deadline. Polls run sequentially and clean up on unmount. No component memory is authoritative.
+`data` uses the renderer's own schema: `HermesSessionState`, `GitHubPR` or `RobloxGame` in the client source. The client validates payloads before rendering, bounds refresh intervals and has a 10-second native request deadline. Polls run sequentially and clean up on unmount. No component memory is authoritative.
 
 During upstream failure, a successful persisted cache entry can be returned with `stale: true` and a safe `warning` string. The client shows the cached data with that warning, including after remounting. GitHub requests have an 8-second deadline; backoff also applies when no successful cache exists.
 
@@ -53,3 +54,9 @@ Errors use `{ "error": "human-readable message" }` with HTTP 400 (input), 401 (a
 ## Add a renderer/provider
 
 Client `registerRenderer` takes provider, kind, reference validator, enabled callback and React component. Shared `useCard` handles fetching and recovery; `CardShell` supplies the preserved visual baseline. Add a corresponding bridge resolver and provider-specific validation/cache policy. Never fetch an arbitrary URL supplied by message text.
+
+## Roblox game data
+
+`roblox:game` uses a canonical positive safe-integer **place ID**, not a universe ID or arbitrary URL. The bridge resolves the universe using the fixed Roblox API origins. It sends no GitHub token or Roblox credentials. Successful data includes numeric `placeId`/`universeId`, string `name`/`creator`/`updatedAt`/`statusReason`, nullable nonnegative integer `playing`/`favorites`/`visits`, and `status`: `open | private | locked | unknown`. See README for availability semantics. The read-only provider uses a 30-second cache and the same manual-refresh envelope fields.
+
+Roblox data may additionally contain nullable `iconUrl` and `thumbnailUrl` fields. Older persisted cards without these fields remain valid. Both the bridge and renderer accept only HTTPS URLs on Roblox's `rbxcdn.com` CDN (no credentials or nondefault port). Artwork retrieval is optional and has a two-second budget within the overall request deadline; its failure does not fail the stats card.

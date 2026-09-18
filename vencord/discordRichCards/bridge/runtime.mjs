@@ -1,4 +1,5 @@
 import http from "node:http";
+import { safeRobloxImageUrl } from "./robloxImages.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -7,6 +8,7 @@ const MIN_AUTOMATIC_UPSTREAM_INTERVAL_MS = 15_000;
 const MIN_MANUAL_UPSTREAM_INTERVAL_MS = 5_000;
 const OPEN_PULL_TTL_MS = 30_000;
 const CLOSED_PULL_TTL_MS = 120_000;
+const ROBLOX_GAME_TTL_MS = 30_000;
 const UPSTREAM_TIMEOUT_MS = 8_000;
 
 class HttpError extends Error {
@@ -213,6 +215,68 @@ function githubError(response) {
     return new HttpError(502, "GitHub could not provide this pull request");
 }
 
+function parseRobloxPlaceReference(reference) {
+    if (!/^[1-9][0-9]*$/.test(reference)) throw new HttpError(400, "Roblox game reference must be a positive place ID");
+    const placeId = Number(reference);
+    if (!Number.isSafeInteger(placeId)) throw new HttpError(400, "Roblox game reference must be a positive place ID");
+    return placeId;
+}
+
+function positiveSafeInteger(value) {
+    return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+function nonNegativeNumberOrNull(value) {
+    return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function robloxError(response, resource) {
+    if (response.status === 404 && resource === "place") return new HttpError(404, "Roblox game was not found");
+    if (response.status === 429) return new HttpError(429, "Roblox rate limit reached; try again later");
+    return new HttpError(502, "Roblox could not provide this game");
+}
+
+function normalizeRobloxDetails(raw, universeId) {
+    const data = Array.isArray(asRecord(raw).data) ? raw.data : [];
+    const game = asRecord(data[0]);
+    if (positiveSafeInteger(game.id) !== universeId) throw new HttpError(502, "Roblox returned an invalid game response");
+    return {
+        name: typeof game.name === "string" && game.name.trim() ? game.name.trim() : "",
+        creator: typeof asRecord(game.creator).name === "string" ? asRecord(game.creator).name : "",
+        playing: nonNegativeNumberOrNull(game.playing),
+        favorites: nonNegativeNumberOrNull(game.favoritedCount),
+        visits: nonNegativeNumberOrNull(game.visits),
+        updatedAt: typeof game.updated === "string" ? game.updated : ""
+    };
+}
+
+function normalizeRobloxUniverse(raw, universeId) {
+    const universe = asRecord(raw);
+    if (positiveSafeInteger(universe.id) !== universeId) throw new HttpError(502, "Roblox returned invalid availability data");
+    const privacyType = typeof universe.privacyType === "string" ? universe.privacyType : "";
+    const active = typeof universe.isActive === "boolean" ? universe.isActive : null;
+    const archived = typeof universe.isArchived === "boolean" ? universe.isArchived : null;
+    let status = "unknown";
+    let statusReason = "Roblox availability could not be confirmed";
+    if (privacyType === "Private") {
+        status = "private";
+        statusReason = "This experience is private";
+    } else if (archived === true || active === false) {
+        status = "locked";
+        statusReason = archived ? "This experience is archived" : "This experience is inactive";
+    } else if (privacyType === "Public" && active === true && archived === false) {
+        status = "open";
+        statusReason = "This experience is public and active";
+    }
+    return {
+        name: typeof universe.name === "string" && universe.name.trim() ? universe.name.trim() : "",
+        creator: typeof universe.creatorName === "string" ? universe.creatorName : "",
+        updatedAt: typeof universe.updated === "string" ? universe.updated : "",
+        status,
+        statusReason
+    };
+}
+
 export function createBridge(options = {}) {
     const config = configFrom(options);
     if (!Number.isInteger(config.port) || config.port < 0 || config.port > 65535) throw new Error("Invalid bridge port");
@@ -328,6 +392,151 @@ export function createBridge(options = {}) {
         return work;
     }
 
+    async function fetchRobloxJson(url, signal, resource) {
+        let response;
+        try {
+            response = await config.fetch(url, {
+                headers: { accept: "application/json", "user-agent": "Discord-RichCards-Bridge/1.0" },
+                signal,
+                redirect: "error"
+            });
+        } catch {
+            if (signal.aborted) throw new HttpError(502, "Roblox request timed out");
+            throw new HttpError(502, "Roblox is temporarily unavailable");
+        }
+        if (!response.ok) throw robloxError(response, resource);
+        try {
+            return await response.json();
+        } catch {
+            if (signal.aborted) throw new HttpError(502, "Roblox request timed out");
+            throw new HttpError(502, "Roblox returned an invalid response");
+        }
+    }
+
+    async function fetchRobloxArtwork(universeId, parentSignal, existing) {
+        if (existing?.artworkExpiresAt > config.now()) return {
+            iconUrl: safeRobloxImageUrl(existing.data?.iconUrl),
+            thumbnailUrl: safeRobloxImageUrl(existing.data?.thumbnailUrl),
+            expiresAt: existing.artworkExpiresAt
+        };
+        // Optional artwork must not hold up live stats for more than two seconds.
+        const signal = AbortSignal.any([parentSignal, AbortSignal.timeout(2000)]);
+        const [icons, thumbnails] = await Promise.allSettled([
+            fetchRobloxJson(`https://thumbnails.roblox.com/v1/games/icons?universeIds=${universeId}&returnPolicy=PlaceHolder&size=150x150&format=Png&isCircular=false`, signal, "artwork"),
+            fetchRobloxJson(`https://thumbnails.roblox.com/v1/games/multiget/thumbnails?universeIds=${universeId}&countPerUniverse=1&defaults=true&size=768x432&format=Png&isCircular=false`, signal, "artwork")
+        ]);
+        const icon = icons.status === "fulfilled" && Array.isArray(icons.value?.data) ? icons.value.data.find(item => item?.targetId === universeId) : null;
+        const group = thumbnails.status === "fulfilled" && Array.isArray(thumbnails.value?.data) ? thumbnails.value.data.find(item => item?.universeId === universeId) : null;
+        const thumbnail = Array.isArray(group?.thumbnails) ? group.thumbnails[0] : null;
+        const iconUrl = icons.status === "rejected" ? safeRobloxImageUrl(existing?.data?.iconUrl) : icon?.state === "Completed" ? safeRobloxImageUrl(icon.imageUrl) : null;
+        const thumbnailUrl = thumbnails.status === "rejected" ? safeRobloxImageUrl(existing?.data?.thumbnailUrl) : thumbnail?.state === "Completed" ? safeRobloxImageUrl(thumbnail.imageUrl) : null;
+        const complete = icons.status === "fulfilled" && thumbnails.status === "fulfilled" && iconUrl && thumbnailUrl;
+        return { iconUrl, thumbnailUrl, expiresAt: config.now() + (complete ? 300000 : 60000) };
+    }
+
+    async function resolveRobloxGame(reference, forceRefresh) {
+        const placeId = parseRobloxPlaceReference(reference);
+        const key = `roblox:game:${placeId}`;
+        const existing = own(db.cards, key) ? db.cards[key] : null;
+        const now = config.now();
+        if (existing?.backoffUntil > now) {
+            if (existing.data) return cardEnvelope(existing, { stale: true, warning: existing.backoffMessage ?? "Roblox is temporarily unavailable" });
+            throw new HttpError(existing.backoffStatus ?? 502, existing.backoffMessage ?? "Roblox is temporarily unavailable");
+        }
+        if (pending.has(key)) return pending.get(key);
+
+        const robloxEnvelope = (entry, extra = {}) => cardEnvelope(entry, {
+            ...(entry.warning ? { warning: entry.warning } : {}),
+            ...extra
+        });
+
+        const fresh = existing && now - existing.fetchedAt < existing.refreshAfterMs;
+        const automaticTooSoon = existing && now - (existing.lastAttemptAt ?? 0) < MIN_AUTOMATIC_UPSTREAM_INTERVAL_MS;
+        if (!forceRefresh && existing && (fresh || automaticTooSoon)) return robloxEnvelope(existing);
+
+        const manualDeferredMs = forceRefresh && existing && Math.max(0, MIN_MANUAL_UPSTREAM_INTERVAL_MS - (now - (existing.lastManualAttemptAt ?? 0)));
+        if (manualDeferredMs) return robloxEnvelope(existing, { refreshDeferredMs: manualDeferredMs });
+
+        const work = (async () => {
+            const attemptAt = config.now();
+            const lastManualAttemptAt = forceRefresh ? attemptAt : existing?.lastManualAttemptAt;
+            if (forceRefresh && existing) existing.lastManualAttemptAt = attemptAt;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+            try {
+                const cachedUniverseId = existing?.data?.placeId === placeId ? positiveSafeInteger(existing.data.universeId) : null;
+                const universeId = cachedUniverseId ?? positiveSafeInteger(asRecord(await fetchRobloxJson(
+                    `https://apis.roblox.com/universes/v1/places/${placeId}/universe`, controller.signal, "place"
+                )).universeId);
+                if (!universeId) throw new HttpError(502, "Roblox returned an invalid game response");
+
+                const [detailsResult, universeResult, artworkResult] = await Promise.allSettled([
+                    fetchRobloxJson(`https://games.roblox.com/v1/games?universeIds=${universeId}`, controller.signal, "game").then(raw => normalizeRobloxDetails(raw, universeId)),
+                    fetchRobloxJson(`https://develop.roblox.com/v1/universes/${universeId}`, controller.signal, "universe").then(raw => normalizeRobloxUniverse(raw, universeId)),
+                    fetchRobloxArtwork(universeId, controller.signal, existing)
+                ]);
+                const artwork = artworkResult.status === "fulfilled" ? artworkResult.value : { iconUrl: null, thumbnailUrl: null, expiresAt: 0 };
+                const details = detailsResult.status === "fulfilled" ? detailsResult.value : null;
+                const universe = universeResult.status === "fulfilled" ? universeResult.value : null;
+                const rateLimited = [detailsResult, universeResult].find(result => result.status === "rejected" && result.reason instanceof HttpError && result.reason.status === 429);
+                if (rateLimited) throw rateLimited.reason;
+                if (!details && !universe) throw new HttpError(502, "Roblox is temporarily unavailable");
+
+                const warnings = [];
+                if (!details) warnings.push("Roblox game details are temporarily unavailable");
+                if (!universe || universe.status === "unknown") warnings.push("Roblox availability could not be confirmed");
+                const name = details?.name || universe?.name || "";
+                if (!name) throw new HttpError(502, "Roblox returned an invalid game response");
+                const data = {
+                    placeId,
+                    universeId,
+                    name,
+                    creator: details?.creator || universe?.creator || "Unknown",
+                    playing: details?.playing ?? null,
+                    favorites: details?.favorites ?? null,
+                    visits: details?.visits ?? null,
+                    status: universe?.status ?? "unknown",
+                    statusReason: universe?.statusReason ?? "Roblox availability could not be confirmed",
+                    updatedAt: details?.updatedAt || universe?.updatedAt || "",
+                    iconUrl: artwork.iconUrl,
+                    thumbnailUrl: artwork.thumbnailUrl
+                };
+                const entry = {
+                    key,
+                    provider: "roblox",
+                    kind: "game",
+                    data,
+                    fetchedAt: config.now(),
+                    refreshAfterMs: ROBLOX_GAME_TTL_MS,
+                    artworkExpiresAt: artwork.expiresAt,
+                    lastAttemptAt: attemptAt,
+                    lastManualAttemptAt,
+                    warning: warnings.length ? warnings.join("; ") : undefined
+                };
+                db.cards[key] = entry;
+                saveDb();
+                return robloxEnvelope(entry);
+            } catch (error) {
+                const safe = error instanceof HttpError ? error : new HttpError(502, "Roblox is temporarily unavailable");
+                const entry = existing ?? { key, provider: "roblox", kind: "game", data: null, fetchedAt: 0, refreshAfterMs: 0 };
+                entry.lastAttemptAt = attemptAt;
+                entry.lastManualAttemptAt = lastManualAttemptAt;
+                entry.backoffUntil = config.now() + (safe.status === 429 ? 60_000 : 30_000);
+                entry.backoffStatus = safe.status;
+                entry.backoffMessage = safe.message;
+                db.cards[key] = entry;
+                saveDb();
+                if (entry.data) return cardEnvelope(entry, { stale: true, warning: safe.message });
+                throw safe;
+            } finally {
+                clearTimeout(timeout);
+                pending.delete(key);
+            }
+        })();
+        pending.set(key, work);
+        return work;
+    }
+
     const cardHandlers = new Map([
         ["hermes:session", async card => {
             if (!safeId(card.reference)) throw new HttpError(400, "Invalid session id");
@@ -335,7 +544,8 @@ export function createBridge(options = {}) {
             const state = db.sessions[card.reference];
             return cardEnvelope({ key: `hermes:session:${card.reference}`, provider: "hermes", kind: "session", fetchedAt: Date.parse(state.updatedAt) || config.now(), refreshAfterMs: 1_000, data: state });
         }],
-        ["github:pr", async (card, forceRefresh) => resolveGithubPull(card.reference, forceRefresh)]
+        ["github:pr", async (card, forceRefresh) => resolveGithubPull(card.reference, forceRefresh)],
+        ["roblox:game", async (card, forceRefresh) => resolveRobloxGame(card.reference, forceRefresh)]
     ]);
 
     async function handler(req, res) {
