@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildComposerInsertion, parseComposerLink } from "../vencord/discordRichCards/marker.ts";
+import { buildComposerInsertion, parseComposerLink, parseMarkers } from "../vencord/discordRichCards/marker.ts";
+
+test("composer recognizes the Codex tracker and rejects unrelated paths and hosts", () => {
+    const card = parseComposerLink("https://hascodexratelimitreset.today");
+    assert.deepEqual(card, { provider: "codex", kind: "reset", reference: "today", url: "https://hascodexratelimitreset.today/" });
+    assert.equal(buildComposerInsertion(card, false), "[[richcard:codexreset]] ");
+    const markers = parseMarkers("[[richcard:codexreset]] [[richcard:codex:reset:today]]");
+    assert.equal(markers.length, 2);
+    for (const marker of markers) assert.deepEqual([marker.provider, marker.kind, marker.reference], ["codex", "reset", "today"]);
+    for (const url of ["http://hascodexratelimitreset.today", "https://hascodexratelimitreset.today/admin", "https://hascodexratelimitreset.today.evil.example", "https://user:pass@hascodexratelimitreset.today", "https://hascodexratelimitreset.today:444"]) {
+        assert.equal(parseComposerLink(url), null);
+    }
+});
 
 test("composer recognizes canonical GitHub pull request and Roblox game links", () => {
     assert.deepEqual(parseComposerLink("https://github.com/LordMerc/DiscordRichCards/pull/2"), {

@@ -463,6 +463,31 @@
 .rich-card-roblox .rich-card-roblox-icon { width: 48px; height: 48px; flex: 0 0 48px; border-radius: 12px; overflow: hidden; }
 .rich-card-roblox-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
+.rich-card-codex { --hl-accent: #64b5ff; background: #171e29; border-color: #3c638a; }
+.rich-card-codex[data-status] { --hl-accent: #64b5ff; }
+.rich-card-codex::before { background: #64b5ff; }
+.rich-card-codex .hermes-live-header { background: #1c2634; flex-wrap: wrap; gap: 12px; }
+.rich-card-codex .hermes-live-footer { background: #1c2634; flex-wrap: wrap; gap: 12px; }
+.rich-card-codex .hermes-live-eyebrow, .rich-card-codex .hermes-live-session { color: #bdc9d8; }
+.rich-card-codex .hermes-live-status { color: #d4dfeb; border-color: #526174; background: #263344; }
+.rich-card-codex .hermes-live-button { color: #eef7ff; background: #234365; border-color: #4c7095; }
+.rich-card-codex .hermes-live-button:hover:not(:disabled) { background: #2d557e; }
+.rich-card-codex-glyph { background: #64b5ff; color: #122238; }
+.rich-card-codex-body { display: grid; gap: 12px; }
+.rich-card-codex-answer { color: #f5f7fa; font-size: 30px; font-weight: 750; letter-spacing: -.025em; line-height: 1.2; overflow-wrap: anywhere; }
+.rich-card-codex-verdict { margin: -4px 0 0; color: #d8e0ea; font-size: 16px; line-height: 1.4; }
+.rich-card-codex-source { margin: 0; color: #d8e0ea; font-size: 13px; line-height: 1.6; }
+.rich-card-codex-disclaimer { margin: 0; color: #bdc9d8; font-size: 12px; line-height: 1.5; }
+.rich-card-codex-details { border-top: 1px solid #364353; padding-top: 4px; }
+.rich-card-codex-details > summary { padding: 10px 0; cursor: pointer; color: #d8e0ea; font-size: 13px; font-weight: 600; }
+.rich-card-codex-detail { display: grid; gap: 5px; min-width: 0; margin: 8px 0 14px; }
+.rich-card-codex-detail > span { color: #bdc9d8; font-size: 12px; font-weight: 600; }
+.rich-card-codex-detail p, .rich-card-codex-post { margin: 0; color: #f5f7fa; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.rich-card-codex a.rich-card-codex-post { display: block; color: #9fd2ff; text-decoration: underline; text-underline-offset: 3px; }
+.rich-card-codex-post:focus-visible, .rich-card-codex-details > summary:focus-visible { outline: 2px solid #9fd2ff; outline-offset: 3px; }
+.rich-card-codex-times { display: flex; flex-wrap: wrap; gap: 8px 16px; color: #bdc9d8; font-size: 12px; line-height: 1.5; }
+.rich-card-codex-times b { color: #d8e0ea; font-weight: 600; }
+
 .rich-card-about { display: flex; align-items: center; gap: 10px; }
 .rich-card-about > a:last-child { color: var(--text-link); }
 

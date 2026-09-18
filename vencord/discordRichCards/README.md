@@ -22,3 +22,13 @@ Roblox: `[[richcard:roblox:game:129932912185311]]` shows player/favorite/visit c
 Public live and upcoming events appear below the stats with local start/end times. Expand **More events** to see beyond the first three. Events cache for five minutes; Refresh bypasses this cache except during a one-minute error backoff. An event-service failure leaves the stats usable and labels cached schedules as stale. No events section appears for a successful empty result.
 
 Developers can add optional card features as components using `components/CardSection.tsx`; see `renderers/roblox/RobloxEventsSection.tsx`. Add optional, validated provider data and keep feature failures independent of core stats.
+
+## Codex reset tracker
+
+Paste `https://hascodexratelimitreset.today/` into **Create RichCard** to preview and insert the blue Codex card, or use `[[richcard:codexreset]]`. With the isolated Dev plugin, use `[[richcard-dev:codexreset]]`.
+
+The card reads the site's public status API and shows its Yes/No verdict, latest tracked post and reasoning, source check time, and last reported reset. This is a community announcement tracker, not your personal Codex quota. Inactive or unknown monitor states are labeled; refreshing the card does not rerun the site's monitor.
+
+Enable Codex cards in plugin settings (enabled by default). Data is cached for 30 seconds, with the shared five-second manual-refresh gate, request deduplication, stale-cache fallback, and 60-second backoff on HTTP 429. No account credentials are needed. Optional external bridge mode also applies to Codex; update that bridge to a version supporting this provider.
+
+The older `[[richcard:codex:reset:today]]` marker remains supported.

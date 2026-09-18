@@ -6,6 +6,7 @@ import { DraftStore, DraftType, Modal, SelectedChannelStore, showToast, TextInpu
 import { buildComposerInsertion, parseComposerLink, parseMarkers } from "../marker";
 import { GitHubPRCard } from "../renderers/github/GitHubPRCard";
 import { RobloxGameCard } from "../renderers/roblox/RobloxGameCard";
+import { CodexResetCard } from "../renderers/codex/CodexResetCard";
 import { settings } from "../settings";
 
 function isOwnAuthorAllowed(botUserIds: string) {
@@ -17,11 +18,11 @@ function isOwnAuthorAllowed(botUserIds: string) {
 export function ComposerModal({ channelId, ...modalProps }: RenderModalProps & { channelId: string; }) {
     const [link, setLink] = useState("");
     const [includeUrl, setIncludeUrl] = useState(true);
-    const { enableGitHub, enableRoblox, botUserIds } = settings.use(["enableGitHub", "enableRoblox", "botUserIds"]);
+    const { enableGitHub, enableRoblox, enableCodex, botUserIds } = settings.use(["enableGitHub", "enableRoblox", "enableCodex", "botUserIds"]);
     const card = useMemo(() => parseComposerLink(link), [link]);
-    const providerEnabled = card?.provider === "github" ? enableGitHub : card?.provider === "roblox" ? enableRoblox : false;
+    const providerEnabled = card?.provider === "github" ? enableGitHub : card?.provider === "roblox" ? enableRoblox : card?.provider === "codex" ? enableCodex : false;
     const descriptor = card && providerEnabled ? { ...card, rawMarker: "" } : null;
-    const Preview = card?.provider === "github" ? GitHubPRCard : RobloxGameCard;
+    const Preview = card?.provider === "github" ? GitHubPRCard : card?.provider === "roblox" ? RobloxGameCard : CodexResetCard;
     const existingDraft = DraftStore.getDraft(channelId, DraftType.ChannelMessage) ?? "";
     const hasExistingCard = parseMarkers(existingDraft).length > 0;
     const ownAuthorAllowed = isOwnAuthorAllowed(botUserIds);
@@ -41,9 +42,9 @@ export function ComposerModal({ channelId, ...modalProps }: RenderModalProps & {
     };
 
     const notice = !card && link.trim()
-        ? "Paste a public GitHub pull request or Roblox game URL."
+        ? "Paste a public GitHub pull request, Roblox game, or Codex reset tracker URL."
         : card && !providerEnabled
-            ? `${card.provider === "github" ? "GitHub" : "Roblox"} cards are disabled in DiscordRichCards settings.`
+            ? `${card.provider === "github" ? "GitHub" : card.provider === "roblox" ? "Roblox" : "Codex reset tracker"} cards are disabled in DiscordRichCards settings.`
             : hasExistingCard
                 ? "This channel's draft already contains a RichCard marker. One card is allowed per message."
                 : !ownAuthorAllowed
@@ -53,7 +54,7 @@ export function ComposerModal({ channelId, ...modalProps }: RenderModalProps & {
     return <Modal
         {...modalProps}
         title="Create RichCard"
-        subtitle="Paste a GitHub pull request or Roblox game link, preview it, then insert it into this draft."
+        subtitle="Paste a GitHub pull request, Roblox game, or Codex reset tracker link, preview it, then insert it into this draft."
         notice={notice ? { message: notice, type: "warning" } : undefined}
         actions={[
             { text: "Cancel", variant: "secondary", onClick: modalProps.onClose },
@@ -65,7 +66,7 @@ export function ComposerModal({ channelId, ...modalProps }: RenderModalProps & {
             <TextInput
                 value={link}
                 onChange={setLink}
-                placeholder="https://github.com/owner/repo/pull/123"
+                placeholder="https://hascodexratelimitreset.today/"
                 autoFocus
                 aria-label="RichCard link"
             />

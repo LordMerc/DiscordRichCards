@@ -3,6 +3,7 @@ import { validRobloxEvent } from "./bridge/robloxEvents.mjs";
 import type { HermesSessionState } from "./types";
 import type { RobloxGame } from "./renderers/roblox/types";
 import type { GitHubPR } from "./renderers/github/types";
+import type { CodexReset } from "./renderers/codex/types";
 
 const object = (value: unknown): value is Record<string, any> => !!value && typeof value === "object" && !Array.isArray(value);
 const strings = (value: Record<string, any>, keys: string[]) => keys.every(key => typeof value[key] === "string");
@@ -34,4 +35,33 @@ export function validateRoblox(value: unknown): value is RobloxGame {
         && (value.eventsStatus === undefined || ["ready", "stale", "unavailable"].includes(value.eventsStatus))
         && (value.eventsTruncated === undefined || typeof value.eventsTruncated === "boolean")
         && ["iconUrl", "thumbnailUrl"].every(key => value[key] == null || safeRobloxImageUrl(value[key]) !== null);
+}
+
+function nullableIsoDate(value: unknown): value is string | null {
+    return value === null || (typeof value === "string"
+        && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+        && Number.isFinite(Date.parse(value)));
+}
+
+function safeCodexPostUrl(value: unknown): value is string | null {
+    if (value === null) return true;
+    if (typeof value !== "string") return false;
+    try {
+        const url = new URL(value);
+        if (url.protocol !== "https:" || url.username || url.password || url.port || url.search || url.hash) return false;
+        if (url.hostname !== "x.com" && url.hostname !== "twitter.com") return false;
+        return /^\/[A-Za-z0-9_]{1,15}\/status\/[1-9][0-9]*$/.test(url.pathname);
+    } catch {
+        return false;
+    }
+}
+
+export function validateCodex(value: unknown): value is CodexReset {
+    return object(value)
+        && strings(value, ["tweetText", "rationale"])
+        && ["yes", "no", "unknown"].includes(value.state)
+        && ["active", "inactive", "unknown"].includes(value.monitor)
+        && nullableIsoDate(value.checkedAt)
+        && nullableIsoDate(value.resetAt)
+        && safeCodexPostUrl(value.tweetUrl);
 }
