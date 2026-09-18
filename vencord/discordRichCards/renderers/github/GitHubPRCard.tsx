@@ -5,7 +5,7 @@ import { parseGitHubPRRef } from "../../marker";
 import type { RichCardDescriptor } from "../../types";
 
 export function GitHubPRCard({ descriptor }: { descriptor: RichCardDescriptor; }) {
-    const { data, error, notice, refresh, refreshing } = useCard(descriptor, validateGitHub, 15000);
+    const { data, error, notice, refresh, refreshDisabled, refreshLabel } = useCard(descriptor, validateGitHub, 15000);
     const ref = parseGitHubPRRef(descriptor.reference)!;
     // Construct the destination from the validated marker, never from an upstream URL.
     const url = `https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`;
@@ -40,7 +40,7 @@ export function GitHubPRCard({ descriptor }: { descriptor: RichCardDescriptor; }
             <span className="hermes-live-session">Updated {Number.isFinite(updated) ? new Date(updated).toLocaleString() : "—"}</span>
             <div className="hermes-live-actions">
                 <a className="hermes-live-button" href={url} target="_blank" rel="noreferrer">Open PR ↗</a>
-                <button className="hermes-live-button" disabled={refreshing} onClick={refresh}>{refreshing ? "Refreshing…" : "Refresh"}</button>
+                <button className="hermes-live-button" disabled={refreshDisabled} onClick={refresh}>{refreshLabel}</button>
             </div>
         </div>
     </CardShell>;

@@ -58,7 +58,7 @@ function formatElapsed(startedAt: string | undefined, finishedAt: string | undef
 
 export function HermesCard({ descriptor }: { descriptor: RichCardDescriptor; }) {
     const sessionId = descriptor.reference;
-    const { data: state, error, setError, refresh, refreshing } = useCard<HermesSessionState>(descriptor, validateHermes, 500);
+    const { data: state, error, setError, refresh, refreshDisabled, refreshLabel } = useCard<HermesSessionState>(descriptor, validateHermes, 500);
     const [detailsOpen, setDetailsOpen] = useState(true);
     const [actionPending, setActionPending] = useState<string | null>(null);
     const [now, setNow] = useState(Date.now());
@@ -162,7 +162,7 @@ export function HermesCard({ descriptor }: { descriptor: RichCardDescriptor; }) 
                             {detailsOpen ? "Hide details" : "Details"}
                         </button>
                     )}
-                    <button className="hermes-live-button" disabled={refreshing} onClick={refresh}>Refresh</button>
+                    <button className="hermes-live-button" disabled={refreshDisabled} onClick={refresh}>{refreshLabel}</button>
                     {canPause && <button className="hermes-live-button" disabled={actionPending != null} onClick={() => void sendAction("pause")}>Pause</button>}
                     {canResume && <button className="hermes-live-button" disabled={actionPending != null} onClick={() => void sendAction("resume")}>Resume</button>}
                     {canCancel && <button className="hermes-live-button hermes-live-button--danger" disabled={actionPending != null} onClick={() => void sendAction("cancel")}>Stop</button>}

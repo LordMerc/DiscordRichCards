@@ -1,17 +1,21 @@
 import "./styles.css";
 import { addMessageAccessory, removeMessageAccessory } from "@api/MessageAccessories";
 import ErrorBoundary from "@components/ErrorBoundary";
+import { GithubButton } from "@components/settings/tabs/plugins/PluginModalButtons";
 import definePlugin from "@utils/types";
 import type { Message } from "@vencord/discord-types";
 import { CardError } from "./components/CardShell";
-import { parseGitHubPRRef, parseMarkers } from "./marker";
+import { parseGitHubPRRef, parseMarkers, parseRobloxGameRef } from "./marker";
 import { getRenderer, registerRenderer } from "./registry";
 import { HermesCard } from "./renderers/hermes/HermesCard";
 import { GitHubPRCard } from "./renderers/github/GitHubPRCard";
+import { RobloxGameCard } from "./renderers/roblox/RobloxGameCard";
 import { debug, Native, settings } from "./settings";
 
 registerRenderer({ provider: "hermes", kind: "session", component: HermesCard, validateReference: ref => /^[A-Za-z0-9._:-]{1,128}$/.test(ref), enabled: () => settings.store.enableHermes });
 registerRenderer({ provider: "github", kind: "pr", component: GitHubPRCard, validateReference: ref => parseGitHubPRRef(ref) !== null, enabled: () => settings.store.enableGitHub });
+
+registerRenderer({ provider: "roblox", kind: "game", component: RobloxGameCard, validateReference: ref => parseRobloxGameRef(ref) !== null, enabled: () => settings.store.enableRoblox });
 
 function RenderFailure() { return <CardError message="This RichCard could not be rendered. Reload the channel to retry." />; }
 
@@ -33,10 +37,14 @@ function renderAccessory(message: Message) {
 
 export default definePlugin({
     name: "DiscordRichCards",
-    description: "Persistent live Hermes and GitHub pull request cards anchored to Discord messages.",
+    description: "Persistent live Hermes, GitHub pull request and Roblox game cards anchored to Discord messages.",
     authors: [{ name: "LordMerc", id: 326081760108740608n }],
     dependencies: ["MessageAccessoriesAPI"],
     settings,
+    settingsAboutComponent: () => <div className="rich-card-about">
+        <GithubButton text="View source code" href="https://github.com/LordMerc/DiscordRichCards" />
+        <a href="https://github.com/LordMerc/DiscordRichCards" target="_blank" rel="noreferrer">GitHub repository</a>
+    </div>,
     start() {
         if (!settings.store.useExternalBridge) {
             void Native.startManagedBridge().then(result => {

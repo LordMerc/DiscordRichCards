@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseMarkers, parseGitHubPRRef } from "../vencord/discordRichCards/marker.ts";
+import { parseMarkers, parseGitHubPRRef, parseRobloxGameRef } from "../vencord/discordRichCards/marker.ts";
 import { startPolling } from "../vencord/discordRichCards/polling.ts";
-import { validateHermes, validateGitHub } from "../vencord/discordRichCards/validation.ts";
+import { validateHermes, validateGitHub, validateRoblox } from "../vencord/discordRichCards/validation.ts";
+import { MANUAL_REFRESH_COOLDOWN_MS, getManualRefreshCooldownRemaining, getRefreshLabel } from "../vencord/discordRichCards/refresh.ts";
 
 test("durable legacy and generic anchors normalize in message order", () => {
     const cards = parseMarkers("fallback [[hermes-live:demo-001]] [[richcard:github:pr:Vendicated/Vencord#4607]] [[richcard:hermes:session:demo-001]]");
@@ -55,4 +56,25 @@ test("Discord custom emoji substitution preserves the GitHub provider delimiter"
             provider: "github", kind: "pr", reference: "Vendicated/Vencord#4608", rawMarker
         }]);
     }
+});
+
+ test("Roblox markers and normalized data reject invalid IDs and counts", () => {
+    const ref = "129932912185311";
+    assert.equal(parseRobloxGameRef(ref), 129932912185311);
+    assert.equal(parseMarkers("[[richcard:roblox:game:" + ref + "]]")[0].reference, ref);
+    for (const value of ["0", "01", "-1", "9007199254740992", "https://roblox.com/games/1", "1?x=2"]) assert.equal(parseRobloxGameRef(value), null);
+    const data = {placeId: 129932912185311, universeId: 8946565814, name: "Anime Origins", creator: "Origins Project", playing: 1234, favorites: 25000, visits: null, status: "open", statusReason: "Public and active", updatedAt: "2026-09-17T00:00:00Z"};
+    assert.equal(validateRoblox(data), true);
+    assert.equal(validateRoblox({...data, playing: null, status: "private"}), true);
+    for (const invalid of [{playing: -1}, {favorites: "2"}, {visits: 1.2}, {status: "GuestProhibited"}, {placeId: 0}, {iconUrl: "http://tr.rbxcdn.com/icon"}, {thumbnailUrl: "https://rbxcdn.com.evil.example/image"}, {iconUrl: "https://user:pass@tr.rbxcdn.com/icon"}]) assert.equal(validateRoblox({...data, ...invalid}), false);
+});
+
+test("manual refresh labels hold a five-second cooldown independently of request state", () => {
+    const now = 1_000_000;
+    const until = now + MANUAL_REFRESH_COOLDOWN_MS;
+    assert.equal(getManualRefreshCooldownRemaining(until, now), 5_000);
+    assert.equal(getRefreshLabel(true, getManualRefreshCooldownRemaining(until, now)), "Refresh (5s)");
+    assert.equal(getRefreshLabel(false, getManualRefreshCooldownRemaining(until, now + 1_001)), "Refresh (4s)");
+    assert.equal(getRefreshLabel(true, getManualRefreshCooldownRemaining(until, until)), "Refreshing…");
+    assert.equal(getRefreshLabel(false, getManualRefreshCooldownRemaining(until, until)), "Refresh");
 });

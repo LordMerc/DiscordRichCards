@@ -21,3 +21,9 @@ export function parseGitHubPRRef(reference: string) {
     const number = Number(match[3]);
     return Number.isSafeInteger(number) ? { owner: match[1], repo: match[2], number } : null;
 }
+
+export function parseRobloxGameRef(reference: string): number | null {
+    if (!/^[1-9][0-9]{0,15}$/.test(reference)) return null;
+    const id = Number(reference);
+    return Number.isSafeInteger(id) ? id : null;
+}

@@ -2,8 +2,14 @@ import { app, IpcMainInvokeEvent } from "electron";
 import http from "node:http";
 import https from "node:https";
 import { join } from "node:path";
+import { CspPolicies } from "@main/csp";
 import { DATA_DIR } from "@main/utils/constants";
 import { createManagedBridge } from "./bridge/managed.mjs";
+
+// Discord blocks external image hosts unless registered before its page loads.
+// Only images are allowed: APIs remain native requests and no script/connect rule is added.
+CspPolicies["https://rbxcdn.com"] = ["img-src"];
+CspPolicies["https://*.rbxcdn.com"] = ["img-src"];
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const managed = createManagedBridge({

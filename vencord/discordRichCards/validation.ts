@@ -1,4 +1,6 @@
+import { safeRobloxImageUrl } from "./bridge/robloxImages.mjs";
 import type { HermesSessionState } from "./types";
+import type { RobloxGame } from "./renderers/roblox/types";
 import type { GitHubPR } from "./renderers/github/types";
 
 const object = (value: unknown): value is Record<string, any> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -20,4 +22,12 @@ export function validateGitHub(value: unknown): value is GitHubPR {
         && numbers(value, ["number", "changedFiles", "additions", "deletions", "comments"])
         && ["open", "closed", "merged"].includes(value.state) && typeof value.draft === "boolean"
         && Array.isArray(value.labels) && value.labels.every((label: unknown) => typeof label === "string");
+}
+
+export function validateRoblox(value: unknown): value is RobloxGame {
+    return object(value) && strings(value, ["name", "creator", "statusReason", "updatedAt"])
+        && ["placeId", "universeId"].every(key => Number.isSafeInteger(value[key]) && value[key] > 0)
+        && ["playing", "favorites", "visits"].every(key => value[key] === null || (Number.isSafeInteger(value[key]) && value[key] >= 0))
+        && ["open", "private", "locked", "unknown"].includes(value.status)
+        && ["iconUrl", "thumbnailUrl"].every(key => value[key] == null || safeRobloxImageUrl(value[key]) !== null);
 }
