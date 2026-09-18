@@ -1,0 +1,12 @@
+bridge/*data*.json*
+.env
+.env.*
+node_modules/
+dist/
+.build/
+
+# Personal agent instructions and local files
+AGENTS.md
+AGENTS.override.md
+*.log
+*.bak
