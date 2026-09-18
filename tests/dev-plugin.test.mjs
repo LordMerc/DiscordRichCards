@@ -19,8 +19,9 @@ test("development plugin has separate identity, cache, styles and marker grammar
     assert.match(await read("settings.ts"), /pluginHelpers.DiscordRichCardsDev/);
     assert.match(await read("native.ts"), /"discord-richcards-dev"/);
     assert.doesNotMatch(await read("styles.css"), /\.hermes-live-|\.rich-card[ {.-]/);
-    const { parseMarkers } = await import(pathToFileURL(join(target, "marker.ts")));
+    const { buildComposerInsertion, parseComposerLink, parseMarkers } = await import(pathToFileURL(join(target, "marker.ts")));
     assert.equal(parseMarkers("[[richcard-dev:roblox:game:129932912185311]]").length, 1);
     assert.equal(parseMarkers("[[richcard-dev<:roblox:123>game:129932912185311]]").length, 1);
     for (const marker of ["[[richcard:roblox:game:1]]", "[[richcard:github:pr:a/b#1]]", "hermes-live:demo", "[[hermes-live:demo]]"]) assert.equal(parseMarkers(marker).length, 0, marker);
+    assert.match(buildComposerInsertion(parseComposerLink("https://github.com/LordMerc/DiscordRichCards/pull/2"), false), /^\[\[richcard-dev:github:pr:/);
 });
