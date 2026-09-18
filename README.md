@@ -104,6 +104,12 @@ https://www.roblox.com/games/129932912185311/Anime-Origins
 
 Cards show playing now, favorites, visits, creator and public availability. Counts refresh every 30 seconds while visible; Refresh requests fresh data immediately, with a five-second repeat gate. Roblox may itself cache counters. Unavailable counts show an em dash, never a fabricated zero.
 
+An optional **Events** section below the stats shows public live and upcoming Roblox events, with local start/end times. Live events appear first; three are shown initially and **More events** expands the remainder. Ended, cancelled and private events are excluded. A successful empty result hides the section; retrieval failures show an unavailable or stale-schedule notice without failing the game stats.
+
+Events use the public virtual-events endpoint without credentials. They cache for five minutes; manual Refresh bypasses that TTL, but failed requests back off for one minute. Pagination shares a two-second budget and stops after five pages; a notice indicates when more pages exist. Schedule labels update every 30 seconds while mounted, including during an outage.
+
+For code-based card extensions, compose optional feature components between the card body and footer using `components/CardSection.tsx`. `renderers/roblox/RobloxEventsSection.tsx` is the first example. Keep each feature's data optional in the provider schema, validate it in `validation.ts`, and isolate optional fetch failures from the main card. This is component composition, with no runtime extension loader or user-authored scripts.
+
 Availability uses public universe metadata: **Open** means public and active; **Private** means Roblox explicitly reports private; **Locked** means archived or inactive. Locked does not necessarily mean moderated. **Unknown** means Roblox did not provide enough information. This is not a guarantee that a particular account, age group, region or device can join. No Roblox login, cookie or Studio connection is used. A guest sign-in requirement is not treated as a private game.
 
 Sources: [Roblox Games API](https://create.roblox.com/docs/cloud/reference/domains/games) and [universe API reference](https://create.roblox.com/docs/cloud/reference/features/universes). The public Develop endpoint is experimental and may change.

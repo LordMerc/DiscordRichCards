@@ -1,4 +1,5 @@
 import { safeRobloxImageUrl } from "./bridge/robloxImages.mjs";
+import { validRobloxEvent } from "./bridge/robloxEvents.mjs";
 import type { HermesSessionState } from "./types";
 import type { RobloxGame } from "./renderers/roblox/types";
 import type { GitHubPR } from "./renderers/github/types";
@@ -29,5 +30,8 @@ export function validateRoblox(value: unknown): value is RobloxGame {
         && ["placeId", "universeId"].every(key => Number.isSafeInteger(value[key]) && value[key] > 0)
         && ["playing", "favorites", "visits"].every(key => value[key] === null || (Number.isSafeInteger(value[key]) && value[key] >= 0))
         && ["open", "private", "locked", "unknown"].includes(value.status)
+        && (value.events === undefined || (Array.isArray(value.events) && value.events.every(validRobloxEvent)))
+        && (value.eventsStatus === undefined || ["ready", "stale", "unavailable"].includes(value.eventsStatus))
+        && (value.eventsTruncated === undefined || typeof value.eventsTruncated === "boolean")
         && ["iconUrl", "thumbnailUrl"].every(key => value[key] == null || safeRobloxImageUrl(value[key]) !== null);
 }

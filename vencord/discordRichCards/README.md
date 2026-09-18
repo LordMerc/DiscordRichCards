@@ -16,3 +16,7 @@ Hermes is optional and still needs an external bridge/publisher. Its URL and tok
 Enable **Use an external bridge for GitHub and Roblox** to use a separately hosted server instead of the built-in bridge. Restart Discord after changing that option.
 
 Roblox: `[[richcard:roblox:game:129932912185311]]` shows player/favorite/visit counts every 30 seconds with no setup. Availability uses public metadata (open, private, archived/inactive as locked, or unknown); account-specific join restrictions cannot be determined. Missing counters show an em dash. The repository README includes the separate DiscordRichCardsDev workflow.
+
+Public live and upcoming events appear below the stats with local start/end times. Expand **More events** to see beyond the first three. Events cache for five minutes; Refresh bypasses this cache except during a one-minute error backoff. An event-service failure leaves the stats usable and labels cached schedules as stale. No events section appears for a successful empty result.
+
+Developers can add optional card features as components using `components/CardSection.tsx`; see `renderers/roblox/RobloxEventsSection.tsx`. Add optional, validated provider data and keep feature failures independent of core stats.
