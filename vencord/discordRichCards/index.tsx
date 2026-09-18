@@ -16,13 +16,20 @@ import { HermesCard } from "./renderers/hermes/HermesCard";
 import { GitHubPRCard } from "./renderers/github/GitHubPRCard";
 import { RobloxGameCard } from "./renderers/roblox/RobloxGameCard";
 import { CodexResetCard } from "./renderers/codex/CodexResetCard";
-import { debug, Native, settings } from "./settings";
+import { debug, Native, settings, expandedProviderEnabled } from "./settings";
+import { expandedKinds, validExpandedReference } from "./expandedClient";
+import { SummaryCard, SpotifyListeningCard } from "./renderers/summary/SummaryCard";
+import { ConnectionsPanel } from "./components/ConnectionsPanel";
 
 registerRenderer({ provider: "hermes", kind: "session", component: HermesCard, validateReference: ref => /^[A-Za-z0-9._:-]{1,128}$/.test(ref), enabled: () => settings.store.enableHermes });
 registerRenderer({ provider: "github", kind: "pr", component: GitHubPRCard, validateReference: ref => parseGitHubPRRef(ref) !== null, enabled: () => settings.store.enableGitHub });
 
 registerRenderer({ provider: "roblox", kind: "game", component: RobloxGameCard, validateReference: ref => parseRobloxGameRef(ref) !== null, enabled: () => settings.store.enableRoblox });
 registerRenderer({ provider: "codex", kind: "reset", component: CodexResetCard, validateReference: ref => parseCodexResetRef(ref) !== null, enabled: () => settings.store.enableCodex });
+for (const [provider, kinds] of Object.entries(expandedKinds)) for (const kind of kinds) {
+    registerRenderer({ provider, kind, component: provider === "spotify" && kind === "live" ? SpotifyListeningCard : SummaryCard,
+        validateReference: ref => validExpandedReference(provider, kind, ref), enabled: () => expandedProviderEnabled(provider) });
+}
 
 function RenderFailure() { return <CardError message="This RichCard could not be rendered. Reload the channel to retry." />; }
 
@@ -70,18 +77,18 @@ function renderAccessory(message: Message) {
 
 export default definePlugin({
     name: "DiscordRichCards",
-    description: "Persistent live Hermes, GitHub pull request, Roblox game, and Codex reset tracker cards anchored to Discord messages.",
+    description: "Live game, music, stream, social, service, GitHub, Roblox, Codex and Hermes cards anchored to Discord messages.",
     authors: [{ name: "LordMerc", id: 326081760108740608n }],
     dependencies: ["MessageAccessoriesAPI"],
     settings,
     chatBarButton: { icon: RichCardComposerIcon, render: ComposerButton },
     contextMenus: { "textarea-context": composerContextMenu },
-    settingsAboutComponent: () => <div className="rich-card-about">
+    settingsAboutComponent: () => <><div className="rich-card-about">
         <GithubButton text="View source code" href="https://github.com/LordMerc/DiscordRichCards" />
         <a href="https://github.com/LordMerc/DiscordRichCards" target="_blank" rel="noreferrer">GitHub repository</a>
-    </div>,
+    </div><ConnectionsPanel /></>,
     start() {
-        if (!settings.store.useExternalBridge) {
+        {
             void Native.startManagedBridge().then(result => {
                 if (!result.ok) console.error("[DiscordRichCards]", result.error);
             }).catch(() => console.error("[DiscordRichCards] Could not start the built-in bridge."));

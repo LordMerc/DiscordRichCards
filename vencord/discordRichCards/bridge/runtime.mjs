@@ -1,6 +1,9 @@
 import http from "node:http";
 import { safeRobloxImageUrl } from "./robloxImages.mjs";
 import { currentRobloxEvents, normalizeRobloxEvents } from "./robloxEvents.mjs";
+import { createExpandedResolver, ExpandedError } from "./expanded.mjs";
+import { requestJson as providerRequestJson } from "./transport.mjs";
+import { minecraftStatus } from "./minecraft.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -28,7 +31,8 @@ function configFrom(options = {}) {
         dataFile: options.dataFile ?? env.RICHCARDS_DATA ?? env.HERMES_LIVE_DATA ?? path.join(process.cwd(), "hermes-live-data.json"),
         githubToken: options.githubToken ?? env.RICHCARDS_GITHUB_TOKEN ?? "",
         fetch: options.fetch ?? globalThis.fetch,
-        now: options.now ?? Date.now
+        now: options.now ?? Date.now,
+        providerOptions: options.providerOptions ?? Object.create(null)
     };
 }
 
@@ -316,6 +320,15 @@ export function createBridge(options = {}) {
     }
     const db = loadDb(config.dataFile);
     const pending = new Map();
+    const expanded = createExpandedResolver({
+        getProfile: () => null,
+        getIntegration: () => null,
+        getRevision: () => 0,
+        requestJson: providerRequestJson,
+        minecraftStatus,
+        now: config.now,
+        ...config.providerOptions
+    });
 
     function saveDb() {
         fs.mkdirSync(path.dirname(config.dataFile), { recursive: true });
@@ -736,13 +749,17 @@ export function createBridge(options = {}) {
             const card = cardRoute(url.pathname);
             if (card) {
                 if (req.method !== "GET") throw new HttpError(405, "Method not allowed");
-                const resolveCard = cardHandlers.get(`${card.provider}:${card.kind}`);
+                const resolveCard = cardHandlers.get(`${card.provider}:${card.kind}`)
+                    ?? (expanded.supports(card.provider, card.kind) ? (requested, forceRefresh) => expanded.resolve(requested, forceRefresh) : null);
                 if (!resolveCard) throw new HttpError(404, "Unknown card provider or kind");
                 return json(res, 200, await resolveCard(card, url.searchParams.get("refresh") === "1"));
             }
             throw new HttpError(404, "Unknown API route");
         } catch (error) {
-            const safe = error instanceof HttpError ? error : new HttpError(500, "Internal bridge error");
+            const safe = error instanceof HttpError ? error
+                : error instanceof ExpandedError && [400, 404, 409, 412, 429, 502, 503].includes(error.status)
+                    ? new HttpError(error.status, error.message)
+                    : new HttpError(500, "Internal bridge error");
             json(res, safe.status, { error: safe.message });
         }
     }
@@ -761,6 +778,9 @@ export function createBridge(options = {}) {
                 resolve();
             });
         }),
-        close: () => new Promise(resolve => server.close(() => resolve()))
+        close: () => {
+            expanded.close();
+            return new Promise(resolve => server.close(() => resolve()));
+        }
     };
 }

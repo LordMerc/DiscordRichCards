@@ -3,6 +3,7 @@ import { Native, settings, debug } from "./settings";
 import { startPolling } from "./polling";
 import { getManualRefreshCooldownRemaining, getRefreshLabel, MANUAL_REFRESH_COOLDOWN_MS } from "./refresh";
 import type { RichCardDescriptor, RichCardEnvelope } from "./types";
+import { getConnectionsRevision, subscribeConnections } from "./connectionsUi";
 
 export function useCard<T>(descriptor: RichCardDescriptor, validate: (value: unknown) => value is T, minimumMs: number) {
     const [data, setData] = useState<T | null>(null);
@@ -12,14 +13,24 @@ export function useCard<T>(descriptor: RichCardDescriptor, validate: (value: unk
     const [revision, setRevision] = useState(0);
     const [manualCooldownUntil, setManualCooldownUntil] = useState(0);
     const [manualCooldownRemaining, setManualCooldownRemaining] = useState(0);
+    const [fetchedAt, setFetchedAt] = useState<string | null>(null);
+    const [connectionsRevision, setConnectionsRevision] = useState(getConnectionsRevision());
+    const manualIntentRef = useRef(false);
     const manualCooldownUntilRef = useRef(0);
     const { bridgeUrl, authToken, acceptSelfSigned, pollIntervalMs, useExternalBridge } = settings.use(["bridgeUrl", "authToken", "acceptSelfSigned", "pollIntervalMs", "useExternalBridge"]);
     const { provider, kind, reference } = descriptor;
 
+    useEffect(() => subscribeConnections(() => {
+        manualIntentRef.current = false;
+        setData(null); setError(null); setFetchedAt(null);
+        setConnectionsRevision(getConnectionsRevision());
+    }), []);
+
     useEffect(() => {
         let disposed = false;
         const fallback = Math.max(minimumMs, provider === "hermes" ? (pollIntervalMs || 1000) : 30000);
-        let forceRefresh = revision > 0;
+        let forceRefresh = manualIntentRef.current;
+        manualIntentRef.current = false;
         const stop = startPolling(async () => {
             if (!disposed) setRefreshing(true);
             let delay = fallback;
@@ -35,6 +46,7 @@ export function useCard<T>(descriptor: RichCardDescriptor, validate: (value: unk
                     throw new Error("Malformed bridge response");
                 }
                 setData(envelope.data);
+                setFetchedAt(typeof envelope.fetchedAt === "string" && Number.isFinite(Date.parse(envelope.fetchedAt)) ? envelope.fetchedAt : null);
                 setError(typeof envelope.warning === "string" ? envelope.warning : null);
                 if (Number.isFinite(envelope.refreshAfterMs)) delay = Math.max(minimumMs, fallback, envelope.refreshAfterMs!);
                 if (forceRefresh && Number.isFinite(envelope.refreshDeferredMs) && envelope.refreshDeferredMs! > 0) {
@@ -57,7 +69,7 @@ export function useCard<T>(descriptor: RichCardDescriptor, validate: (value: unk
             return delay;
         }, fallback);
         return () => { disposed = true; stop(); };
-    }, [provider, kind, reference, bridgeUrl, authToken, acceptSelfSigned, pollIntervalMs, useExternalBridge, revision]);
+    }, [provider, kind, reference, bridgeUrl, authToken, acceptSelfSigned, pollIntervalMs, useExternalBridge, revision, connectionsRevision]);
 
     useEffect(() => {
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -77,10 +89,11 @@ export function useCard<T>(descriptor: RichCardDescriptor, validate: (value: unk
         // Update the ref first so two click events in the same render cannot issue two requests.
         manualCooldownUntilRef.current = cooldownUntil;
         setManualCooldownUntil(cooldownUntil);
+        manualIntentRef.current = true;
         setRevision(value => value + 1);
     };
     const refreshDisabled = refreshing || manualCooldownRemaining > 0;
     const refreshLabel = getRefreshLabel(refreshing, manualCooldownRemaining);
 
-    return { data, error, setError, notice, refreshing, refresh, refreshDisabled, refreshLabel };
+    return { data, error, setError, notice, refreshing, refresh, refreshDisabled, refreshLabel, fetchedAt };
 }

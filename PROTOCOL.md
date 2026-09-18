@@ -1,5 +1,13 @@
 # RichCards protocol v1
 
+## Additional native providers
+
+New provider/kind pairs: `fivem:server`, `minecraft:server`, `dockhand:status`, `statuspage:status`, `spotify:track`, `spotify:playlist`, `twitch:channel`, `steam:game`, `youtube:live`, `x:post`. The first four references are native saved-profile IDs. Public providers use canonical resource IDs; X IDs are decimal strings, never JavaScript numbers. `spotify:live:DISCORD_USER_ID` is a renderer-only presence subscription and makes no bridge request.
+
+New bridge cards use the existing version-1 envelope with SummaryData: required text `title`, `statusLabel`, `status`, and `fields` (up to eight `{label,value}` string pairs). Optional fields: `subtitle`, `description`, allowlisted `url`/`imageUrl`, ISO `startedAt`/`endsAt`, and `copyText`. Status is `online | offline | live | scheduled | ended | healthy | degraded | outage | unknown | info`.
+
+Expanded resolver data is memory-only and configuration-revision scoped. Normal cooldown/deferred-refresh/backoff fields remain applicable. X requires explicitly enabled paid reads and manual refresh; background resolution never spends credits. Local profile management is native IPC, not an HTTP API. Runtime embedders may supply `providerOptions` callbacks for native profiles, revision and bounded transport; X also requires a durable `consumeXRequest(limit, now)` reservation callback. Standalone defaults have no credential profiles. See the distributable [connection guide](vencord/discordRichCards/CONNECTIONS.md).
+
 Every `/api/` request uses `Authorization: Bearer <bridge-token>` when configured. `/health` is a public health probe. The native client makes Node HTTP requests, not browser requests. Do not embed credentials in a marker or URL.
 
 ## Resolve a card

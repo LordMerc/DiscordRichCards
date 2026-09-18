@@ -1,0 +1,56 @@
+.rich-card-connections {
+    --connections-surface: rgba(21, 24, 31, .72);
+    --connections-surface-raised: rgba(35, 39, 49, .82);
+    --connections-border: rgba(255, 255, 255, .12);
+    --connections-muted: var(--text-muted, #aeb7c7);
+    --connections-text: var(--text-normal, #f2f3f5);
+    --connections-accent: var(--brand-500, #5865f2);
+    display: grid;
+    gap: 16px;
+    max-width: 720px;
+    padding: 16px;
+    border: 1px solid var(--connections-border);
+    border-radius: 12px;
+    background: linear-gradient(145deg, rgba(88, 101, 242, .10), transparent 38%), var(--connections-surface);
+    color: var(--connections-text);
+}
+
+.rich-card-connections h3,
+.rich-card-connections h4,
+.rich-card-connections p { margin: 0; }
+.rich-card-connections-title { font-size: 16px; font-weight: 750; letter-spacing: -.01em; }
+.rich-card-connections-lede { margin-top: 5px !important; color: var(--connections-muted); font-size: 12px; line-height: 1.5; }
+.rich-card-connections-layout { display: grid; grid-template-columns: minmax(170px, .7fr) minmax(0, 1.4fr); gap: 14px; }
+.rich-card-connection-list { display: grid; align-content: start; gap: 6px; min-width: 0; }
+.rich-card-connection-item,
+.rich-card-connection-new { width: 100%; padding: 9px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--connections-text); font: inherit; text-align: left; cursor: pointer; }
+.rich-card-connection-item:hover,
+.rich-card-connection-new:hover { background: rgba(255, 255, 255, .06); }
+.rich-card-connection-item[aria-current="true"] { border-color: color-mix(in srgb, var(--connections-accent) 65%, transparent); background: color-mix(in srgb, var(--connections-accent) 18%, transparent); }
+.rich-card-connection-item small { display: block; margin-top: 3px; color: var(--connections-muted); font-size: 11px; }
+.rich-card-connection-new { margin-top: 5px; color: #d7dcff; font-weight: 650; }
+.rich-card-connection-form { display: grid; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--connections-border); border-radius: 10px; background: var(--connections-surface-raised); }
+.rich-card-connection-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.rich-card-connection-field { display: grid; gap: 5px; min-width: 0; color: var(--connections-muted); font-size: 12px; font-weight: 620; }
+.rich-card-connection-field--wide { grid-column: 1 / -1; }
+.rich-card-connection-field input,
+.rich-card-connection-field select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 34px; padding: 7px 9px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 6px; background: rgba(0, 0, 0, .18); color: var(--connections-text); font: inherit; font-size: 13px; }
+.rich-card-connection-field input:focus-visible,
+.rich-card-connection-field select:focus-visible,
+.rich-card-connection-item:focus-visible,
+.rich-card-connection-new:focus-visible,
+.rich-card-connection-button:focus-visible { outline: 2px solid #c6beff; outline-offset: 2px; }
+.rich-card-connection-check { display: flex; align-items: center; gap: 8px; color: var(--connections-text); font-size: 12px; cursor: pointer; }
+.rich-card-connection-check input { width: 16px; height: 16px; accent-color: var(--connections-accent); }
+.rich-card-connection-help { color: var(--connections-muted); font-size: 11px; line-height: 1.45; }
+.rich-card-connection-credential { padding: 9px 10px; border-left: 2px solid var(--connections-accent); border-radius: 0 6px 6px 0; background: rgba(88, 101, 242, .09); color: #d9defe; font-size: 11px; line-height: 1.45; }
+.rich-card-connection-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+.rich-card-connection-button { padding: 7px 10px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 6px; background: rgba(255, 255, 255, .08); color: var(--connections-text); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+.rich-card-connection-button:hover:not(:disabled) { background: rgba(255, 255, 255, .15); }
+.rich-card-connection-button--primary { border-color: color-mix(in srgb, var(--connections-accent) 75%, transparent); background: var(--connections-accent); color: white; }
+.rich-card-connection-button--danger { color: #ffb3bb; }
+.rich-card-connection-button:disabled { opacity: .55; cursor: default; }
+.rich-card-connection-result { min-height: 18px; padding: 8px 10px; border-radius: 6px; background: rgba(255, 255, 255, .055); color: var(--connections-muted); font-size: 12px; line-height: 1.4; }
+.rich-card-connection-result[data-kind="error"] { background: rgba(237, 66, 69, .12); color: #ffb3bb; }
+.rich-card-connection-result[data-kind="success"] { background: rgba(35, 165, 90, .12); color: #a6f1c4; }
+@media (max-width: 560px) { .rich-card-connections-layout { grid-template-columns: 1fr; } .rich-card-connection-grid { grid-template-columns: 1fr; } }

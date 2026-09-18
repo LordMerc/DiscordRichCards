@@ -17,8 +17,14 @@ function EventList({ events, now }: { events: RobloxEvent[]; now: number; }) {
                     <span className="rich-card-event-title">{event.title}</span>
                 </div>
                 <div className="rich-card-event-time">
-                    Starts <time dateTime={event.startsAt}>{localTime(event.startsAt)}</time>
-                    <br />Ends <time dateTime={event.endsAt}>{localTime(event.endsAt)}</time>
+                    <div className="rich-card-event-date-line">
+                        <span className="rich-card-event-date-label">Starts</span>
+                        <time dateTime={event.startsAt}>{localTime(event.startsAt)}</time>
+                    </div>
+                    <div className="rich-card-event-date-line">
+                        <span className="rich-card-event-date-label">Ends</span>
+                        <time dateTime={event.endsAt}>{localTime(event.endsAt)}</time>
+                    </div>
                 </div>
             </li>;
         })}

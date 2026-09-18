@@ -1,8 +1,8 @@
 import type { RichCardDescriptor } from "./types";
 
 export interface ComposerCard {
-    provider: "github" | "roblox" | "codex";
-    kind: "pr" | "game" | "reset";
+    provider: "github" | "roblox" | "codex" | "fivem" | "minecraft" | "dockhand" | "statuspage" | "spotify" | "twitch" | "steam" | "youtube" | "x";
+    kind: "pr" | "game" | "reset" | "server" | "status" | "track" | "playlist" | "live" | "channel" | "post";
     reference: string;
     url: string;
 }
@@ -71,10 +71,30 @@ export function parseComposerLink(value: string): ComposerCard | null {
         return { provider: "codex", kind: "reset", reference: "today", url: "https://hascodexratelimitreset.today/" };
     }
 
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (url.hostname === "open.spotify.com" && parts.length === 2 && ["track", "playlist"].includes(parts[0]) && /^[A-Za-z0-9]{22}$/.test(parts[1])) {
+        return { provider: "spotify", kind: parts[0] as "track" | "playlist", reference: parts[1], url: `https://open.spotify.com/${parts[0]}/${parts[1]}` };
+    }
+    if (["www.twitch.tv", "twitch.tv"].includes(url.hostname) && parts.length === 1 && /^[A-Za-z0-9_]{1,25}$/.test(parts[0]) && !["directory", "videos", "settings", "downloads", "subscriptions", "inventory", "wallet", "search", "jobs", "turbo"].includes(parts[0].toLowerCase())) {
+        const reference = parts[0].toLowerCase();
+        return { provider: "twitch", kind: "channel", reference, url: `https://www.twitch.tv/${reference}` };
+    }
+    if (url.hostname === "store.steampowered.com" && [2, 3].includes(parts.length) && parts[0] === "app" && /^[1-9][0-9]{0,9}$/.test(parts[1])) {
+        return { provider: "steam", kind: "game", reference: parts[1], url: `https://store.steampowered.com/app/${parts[1]}/` };
+    }
+    if (["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"].includes(url.hostname)) {
+        const reference = url.hostname === "youtu.be" && parts.length === 1 ? parts[0]
+            : url.pathname === "/watch" ? url.searchParams.get("v") : parts.length === 2 && parts[0] === "live" ? parts[1] : null;
+        if (reference && /^[A-Za-z0-9_-]{11}$/.test(reference)) return { provider: "youtube", kind: "live", reference, url: `https://www.youtube.com/watch?v=${reference}` };
+    }
+    if (["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(url.hostname) && parts.length === 3 && /^[A-Za-z0-9_]{1,15}$/.test(parts[0]) && parts[1] === "status" && /^[1-9][0-9]{0,19}$/.test(parts[2])) {
+        return { provider: "x", kind: "post", reference: parts[2], url: `https://x.com/${parts[0]}/status/${parts[2]}` };
+    }
+
     return null;
 }
 
 export function buildComposerInsertion(card: ComposerCard, includeUrl: boolean) {
     const marker = card.provider === "codex" ? "[[richcard:codexreset]]" : `[[richcard:${card.provider}:${card.kind}:${card.reference}]]`;
-    return includeUrl ? `${marker} ${card.url} ` : `${marker} `;
+    return includeUrl && card.url ? `${marker} ${card.url} ` : `${marker} `;
 }

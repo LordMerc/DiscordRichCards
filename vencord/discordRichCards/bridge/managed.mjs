@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { createBridge } from "./runtime.mjs";
 
 // Owned by the Electron main process. Neither the random port nor token is sent to React.
-export function createManagedBridge({ dataFile, githubToken = "", fetch = globalThis.fetch }) {
+export function createManagedBridge({ dataFile, githubToken = "", fetch = globalThis.fetch, providerOptions = {} }) {
     let enabled = false;
     /** @type {{ bridge: ReturnType<typeof createBridge>, connection: { url: string, token: string } } | undefined} */
     let active;
@@ -20,7 +20,7 @@ export function createManagedBridge({ dataFile, githubToken = "", fetch = global
         if (!enabled) throw new Error("Built-in bridge is disabled");
         if (active) return active.connection;
         const token = randomBytes(32).toString("hex");
-        const bridge = createBridge({ env: {}, host: "127.0.0.1", port: 0, token, githubToken, dataFile, fetch });
+        const bridge = createBridge({ env: {}, host: "127.0.0.1", port: 0, token, githubToken, dataFile, fetch, providerOptions });
         await bridge.listen();
         if (!enabled) {
             await bridge.close();

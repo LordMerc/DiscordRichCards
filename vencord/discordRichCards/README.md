@@ -1,5 +1,7 @@
 # DiscordRichCards for desktop Vencord
 
+Also supports FiveM/Minecraft, Spotify music/live listening, Twitch, Steam, YouTube Live, X, and local Dockhand/service status. See [CONNECTIONS.md](CONNECTIONS.md) for setup, credentials and limitations.
+
 1. Copy this whole `discordRichCards` folder into `Vencord/src/userplugins/`.
 2. Build Vencord with `pnpm build --dev` and fully restart Discord.
 3. Enable **DiscordRichCards** in Vencord settings.
