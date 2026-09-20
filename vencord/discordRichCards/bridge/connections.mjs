@@ -111,7 +111,7 @@ export function createConnectionStore({ file, encrypt, decrypt, isEncryptionAvai
             paidXRequests = usage;
         } catch (error) {
             if (error?.code === "ENOENT") { profiles = []; return; }
-            throw new Error("Cannot read stored connections; existing data has been preserved");
+            throw new Error("Cannot read stored connections; existing data has been preserved", { cause: error });
         }
     }
     function persist(next, usage = paidXRequests, configChanged = true) {
@@ -125,9 +125,9 @@ export function createConnectionStore({ file, encrypt, decrypt, isEncryptionAvai
         try {
             fs.writeFileSync(temporary, JSON.stringify({ version: 1, profiles: stored, paidXRequests: usage }), { mode: 0o600, flag: "wx" });
             fs.renameSync(temporary, file);
-        } catch {
+        } catch (error) {
             try { fs.unlinkSync(temporary); } catch { /* The temporary file may not have been created. */ }
-            throw new Error("Could not save connections; previous settings were preserved");
+            throw new Error("Could not save connections; previous settings were preserved", { cause: error });
         }
         profiles = next;
         paidXRequests = usage;
