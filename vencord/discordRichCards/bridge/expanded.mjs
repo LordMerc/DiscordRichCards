@@ -12,6 +12,29 @@ const IMAGE_HOSTS = new Set([
     "shared.akamai.steamstatic.com", "i.ytimg.com", "i9.ytimg.com", "pbs.twimg.com"
 ]);
 
+const DOCKHAND_STATUS_LABELS = {
+    unknown: "Selected containers unavailable",
+    healthy: "Healthy",
+    online: "Running",
+    degraded: "Partially running",
+    outage: "Stopped"
+};
+
+const STATUSPAGE_STATUS_BY_INDICATOR = {
+    none: "healthy",
+    minor: "degraded",
+    maintenance: "degraded",
+    major: "outage",
+    critical: "outage"
+};
+
+function dockhandStatus({ missing, unhealthy, running, healthy, total }) {
+    if (missing) return "unknown";
+    if (unhealthy) return "degraded";
+    if (running === total) return healthy === total ? "healthy" : "online";
+    return running ? "degraded" : "outage";
+}
+
 export class ExpandedError extends Error {
     constructor(status, message) {
         super(message);
@@ -396,9 +419,10 @@ export function createExpandedResolver(input = {}) {
         const healthy = containers.filter(row => /\bhealthy\b/i.test(text(row.status))).length;
         const unhealthy = containers.some(row => /\bunhealthy\b/i.test(text(row.status)));
         const missing = selected.length - containers.length;
-        const status = missing ? "unknown" : unhealthy ? "degraded" : running === containers.length ? healthy === containers.length ? "healthy" : "online" : running ? "degraded" : "outage";
+        const status = dockhandStatus({ missing, unhealthy, running, healthy, total: containers.length });
+        const statusLabel = status !== "unknown" && unhealthy ? "Health check failing" : DOCKHAND_STATUS_LABELS[status];
         return { ...summary({
-            title: profile.name, status, statusLabel: status === "unknown" ? "Selected containers unavailable" : unhealthy ? "Health check failing" : status === "healthy" ? "Healthy" : status === "online" ? "Running" : status === "degraded" ? "Partially running" : "Stopped",
+            title: profile.name, status, statusLabel,
             fields: fields(field("Running", `${running} / ${selected.length}`), healthy ? field("Healthy", `${healthy} / ${selected.length}`) : null)
         }), containers: details };
     }
@@ -410,7 +434,7 @@ export function createExpandedResolver(input = {}) {
         const raw = record(response.data);
         const state = record(raw.status);
         const indicator = text(state.indicator).toLowerCase();
-        const status = indicator === "none" ? "healthy" : ["minor", "maintenance"].includes(indicator) ? "degraded" : ["major", "critical"].includes(indicator) ? "outage" : "unknown";
+        const status = Object.hasOwn(STATUSPAGE_STATUS_BY_INDICATOR, indicator) ? STATUSPAGE_STATUS_BY_INDICATOR[indicator] : "unknown";
         const incidents = Array.isArray(raw.incidents) ? raw.incidents : [];
         const incidentSummary = incidents.slice(0, 3).map(item => text(record(item).name)).filter(Boolean).join("\n");
         return summary({ title: text(record(raw.page).name, profile.name), description: [text(state.description), incidentSummary].filter(Boolean).join("\n"), status, statusLabel: text(state.description, "Unknown"), fields: fields(incidents.length ? field("Incidents", String(incidents.length)) : null) });
