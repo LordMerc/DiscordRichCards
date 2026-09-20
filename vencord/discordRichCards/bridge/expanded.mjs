@@ -1,6 +1,8 @@
+import { resolveCached } from "./cardCache.mjs";
+
 const MANUAL_GATE_MS = 5_000;
-const RATE_LIMIT_BACKOFF_MS = 60_000;
-const ERROR_BACKOFF_MS = 30_000;
+// Client-side and configuration failures are surfaced immediately and never negatively cached.
+const UNCACHED_FAILURE_STATUSES = new Set([400, 404, 409, 412, 503]);
 
 const SUPPORTED = new Set([
     "fivem:server", "minecraft:server", "dockhand:status", "statuspage:status",
@@ -543,43 +545,29 @@ export function createExpandedResolver(input = {}) {
         if (!card || !SUPPORTED.has(`${card.provider}:${card.kind}`) || typeof card.reference !== "string") throw new ExpandedError(404, "Unknown card provider or kind");
         syncRevision();
         const key = cardKey(card);
-        const now = options.now();
-        const existing = cache.get(key);
-        if (existing?.backoffUntil > now) {
-            if (existing.data) return envelope(existing, { stale: true, warning: existing.backoffMessage });
-            throw new ExpandedError(existing.backoffStatus, existing.backoffMessage);
-        }
-        if (pending.has(key)) return pending.get(key);
-        if (existing && !forceRefresh && existing.expiresAt > now) return envelope(existing);
-        if (forceRefresh && Number.isFinite(existing?.lastManualAt) && now - existing.lastManualAt < MANUAL_GATE_MS) return envelope(existing, { refreshDeferredMs: MANUAL_GATE_MS - (now - existing.lastManualAt) });
-
         const workRevision = revision;
         const workGeneration = generation;
-        const work = (async () => {
-            const lastManualAt = forceRefresh ? now : existing?.lastManualAt;
-            try {
+        return resolveCached({
+            key,
+            provider: card.provider,
+            kind: card.kind,
+            existing: cache.get(key) ?? null,
+            forceRefresh,
+            pending,
+            now: options.now,
+            envelope,
+            createError: (status, message) => new ExpandedError(status, message),
+            toSafeError: error => error instanceof ExpandedError ? error : new ExpandedError(502, "Provider is temporarily unavailable"),
+            store: entry => cache.set(key, entry),
+            fetchFresh: async () => {
                 const data = await adapters[`${card.provider}:${card.kind}`](card, workRevision, workGeneration, forceRefresh);
                 ensureCurrent(workRevision, workGeneration);
-                const entry = { key, provider: card.provider, kind: card.kind, data, fetchedAt: options.now(), refreshAfterMs: ttl(card.provider, card.kind), expiresAt: options.now() + ttl(card.provider, card.kind), lastManualAt };
-                cache.set(key, entry);
-                return envelope(entry);
-            } catch (error) {
-                const safe = error instanceof ExpandedError ? error : new ExpandedError(502, "Provider is temporarily unavailable");
-                if (safe.status === 409 || safe.status === 503 || safe.status === 412 || safe.status === 400 || safe.status === 404) throw safe;
-                const entry = existing ?? { key, provider: card.provider, kind: card.kind, data: null, fetchedAt: 0, refreshAfterMs: 0 };
-                entry.lastManualAt = lastManualAt;
-                entry.backoffUntil = options.now() + (safe.status === 429 ? RATE_LIMIT_BACKOFF_MS : ERROR_BACKOFF_MS);
-                entry.backoffStatus = safe.status;
-                entry.backoffMessage = safe.message;
-                cache.set(key, entry);
-                if (entry.data) return envelope(entry, { stale: true, warning: safe.message });
-                throw safe;
-            } finally {
-                if (pending.get(key) === work) pending.delete(key);
-            }
-        })();
-        pending.set(key, work);
-        return work;
+                return { key, provider: card.provider, kind: card.kind, data, fetchedAt: options.now(), refreshAfterMs: ttl(card.provider, card.kind), expiresAt: options.now() + ttl(card.provider, card.kind) };
+            },
+            manualIntervalMs: MANUAL_GATE_MS,
+            freshUntil: entry => entry.expiresAt,
+            shouldCacheFailure: error => !UNCACHED_FAILURE_STATUSES.has(error.status)
+        });
     }
 
     return {

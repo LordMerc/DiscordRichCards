@@ -2,6 +2,7 @@ import http from "node:http";
 import { safeRobloxImageUrl } from "./robloxImages.mjs";
 import { currentRobloxEvents, normalizeRobloxEvents } from "./robloxEvents.mjs";
 import { createExpandedResolver, ExpandedError } from "./expanded.mjs";
+import { resolveCached } from "./cardCache.mjs";
 import { requestJson as providerRequestJson } from "./transport.mjs";
 import { minecraftStatus } from "./minecraft.mjs";
 import fs from "node:fs";
@@ -361,140 +362,85 @@ export function createBridge(options = {}) {
         }
     }
 
+    function resolveUpstreamCard({ provider, kind, key, forceRefresh, unavailableMessage, envelope = cardEnvelope, fetchFresh }) {
+        return resolveCached({
+            key,
+            provider,
+            kind,
+            existing: own(db.cards, key) ? db.cards[key] : null,
+            forceRefresh,
+            pending,
+            now: config.now,
+            envelope,
+            createError: (status, message) => new HttpError(status, message),
+            toSafeError: error => error instanceof HttpError ? error : new HttpError(502, unavailableMessage),
+            store: entry => {
+                db.cards[key] = entry;
+                saveDb();
+            },
+            fetchFresh,
+            manualIntervalMs: MIN_MANUAL_UPSTREAM_INTERVAL_MS,
+            automaticIntervalMs: MIN_AUTOMATIC_UPSTREAM_INTERVAL_MS,
+            unavailableMessage
+        });
+    }
+
     async function resolveGithubPull(reference, forceRefresh) {
         const identity = parsePullReference(reference);
         const key = `github:pr:${reference}`;
-        const existing = own(db.cards, key) ? db.cards[key] : null;
-        const now = config.now();
-        if (existing?.backoffUntil > now) {
-            if (existing.data) return cardEnvelope(existing, { stale: true, warning: existing.backoffMessage ?? "GitHub is temporarily unavailable" });
-            throw new HttpError(existing.backoffStatus ?? 502, existing.backoffMessage ?? "GitHub is temporarily unavailable");
-        }
-        if (pending.has(key)) return pending.get(key);
-
-        const fresh = existing && now - existing.fetchedAt < existing.refreshAfterMs;
-        const automaticTooSoon = existing && now - (existing.lastAttemptAt ?? 0) < MIN_AUTOMATIC_UPSTREAM_INTERVAL_MS;
-        if (!forceRefresh && existing && (fresh || automaticTooSoon)) return cardEnvelope(existing);
-
-        const manualDeferredMs = forceRefresh && existing && Math.max(0, MIN_MANUAL_UPSTREAM_INTERVAL_MS - (now - (existing.lastManualAttemptAt ?? 0)));
-        if (manualDeferredMs) return cardEnvelope(existing, { refreshDeferredMs: manualDeferredMs });
-
-        const work = (async () => {
-            const headers = {
-                accept: "application/vnd.github+json",
-                "user-agent": "Discord-RichCards-Bridge/1.0",
-                ...(config.githubToken ? { authorization: `Bearer ${config.githubToken}` } : {}),
-                ...(existing?.etag ? { "if-none-match": existing.etag } : {})
-            };
-            const attemptAt = config.now();
-            const lastManualAttemptAt = forceRefresh ? attemptAt : existing?.lastManualAttemptAt;
-            if (forceRefresh && existing) existing.lastManualAttemptAt = attemptAt;
-            try {
+        return resolveUpstreamCard({
+            provider: "github",
+            kind: "pr",
+            key,
+            forceRefresh,
+            unavailableMessage: "GitHub is temporarily unavailable",
+            fetchFresh: async ({ existing }) => {
+                const headers = {
+                    accept: "application/vnd.github+json",
+                    "user-agent": "Discord-RichCards-Bridge/1.0",
+                    ...(config.githubToken ? { authorization: `Bearer ${config.githubToken}` } : {}),
+                    ...(existing?.etag ? { "if-none-match": existing.etag } : {})
+                };
                 const { response, raw } = await fetchGithubPull(`https://api.github.com/repos/${encodeURIComponent(identity.owner)}/${encodeURIComponent(identity.repo)}/pulls/${identity.number}`, headers);
                 if (response.status === 304 && existing) {
                     existing.fetchedAt = config.now();
-                    existing.lastAttemptAt = attemptAt;
-                    existing.lastManualAttemptAt = lastManualAttemptAt;
                     existing.etag = response.headers.get("etag") ?? existing.etag;
                     delete existing.backoffUntil;
-                    saveDb();
-                    return cardEnvelope(existing);
+                    return existing;
                 }
                 const data = normalizePull(raw, identity);
-                const entry = {
+                return {
                     key,
                     provider: "github",
                     kind: "pr",
                     data,
                     fetchedAt: config.now(),
                     refreshAfterMs: data.state === "open" ? OPEN_PULL_TTL_MS : CLOSED_PULL_TTL_MS,
-                    lastAttemptAt: attemptAt,
-                    lastManualAttemptAt,
                     etag: response.headers.get("etag") ?? undefined
                 };
-                db.cards[key] = entry;
-                saveDb();
-                return cardEnvelope(entry);
-            } catch (error) {
-                const safe = error instanceof HttpError ? error : new HttpError(502, "GitHub is temporarily unavailable");
-                const entry = existing ?? { key, provider: "github", kind: "pr", data: null, fetchedAt: 0, refreshAfterMs: 0 };
-                entry.lastAttemptAt = attemptAt;
-                entry.lastManualAttemptAt = lastManualAttemptAt;
-                entry.backoffUntil = config.now() + (safe.status === 429 ? 60_000 : 30_000);
-                entry.backoffStatus = safe.status;
-                entry.backoffMessage = safe.message;
-                db.cards[key] = entry;
-                saveDb();
-                if (entry.data) return cardEnvelope(entry, { stale: true, warning: safe.message });
-                throw safe;
-            } finally {
-                pending.delete(key);
             }
-        })();
-        pending.set(key, work);
-        return work;
+        });
     }
 
     async function resolveCodexReset(reference, forceRefresh) {
         if (reference !== "today") throw new HttpError(400, "Invalid Codex reset reference");
         const key = `codex:reset:${reference}`;
-        const existing = own(db.cards, key) ? db.cards[key] : null;
-        const now = config.now();
-        if (existing?.backoffUntil > now) {
-            if (existing.data) return cardEnvelope(existing, { stale: true, warning: existing.backoffMessage ?? "Codex tracker is temporarily unavailable" });
-            throw new HttpError(existing.backoffStatus ?? 502, existing.backoffMessage ?? "Codex tracker is temporarily unavailable");
-        }
-        if (pending.has(key)) return pending.get(key);
-
-        const fresh = existing && now - existing.fetchedAt < existing.refreshAfterMs;
-        const automaticTooSoon = existing && now - (existing.lastAttemptAt ?? 0) < MIN_AUTOMATIC_UPSTREAM_INTERVAL_MS;
-        if (!forceRefresh && existing && (fresh || automaticTooSoon)) return cardEnvelope(existing);
-
-        const manualDeferredMs = forceRefresh && existing && Math.max(0, MIN_MANUAL_UPSTREAM_INTERVAL_MS - (now - (existing.lastManualAttemptAt ?? 0)));
-        if (manualDeferredMs) return cardEnvelope(existing, { refreshDeferredMs: manualDeferredMs });
-
-        const work = (async () => {
-            const attemptAt = config.now();
-            const lastManualAttemptAt = forceRefresh ? attemptAt : existing?.lastManualAttemptAt;
-            if (forceRefresh && existing) existing.lastManualAttemptAt = attemptAt;
-            try {
+        return resolveUpstreamCard({
+            provider: "codex",
+            kind: "reset",
+            key,
+            forceRefresh,
+            unavailableMessage: "Codex tracker is temporarily unavailable",
+            fetchFresh: async () => {
                 const response = await config.fetch("https://hascodexratelimitreset.today/api/status", {
                     headers: { accept: "application/json", "user-agent": "Discord-RichCards-Bridge/1.0" },
                     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS), redirect: "error"
                 });
                 if (!response.ok) throw new HttpError(response.status === 429 ? 429 : 502, "Codex tracker is temporarily unavailable");
                 const data = normalizeCodexStatus(await response.json());
-                const entry = {
-                    key,
-                    provider: "codex",
-                    kind: "reset",
-                    data,
-                    fetchedAt: config.now(),
-                    refreshAfterMs: 30_000,
-                    lastAttemptAt: attemptAt,
-                    lastManualAttemptAt
-                };
-                db.cards[key] = entry;
-                saveDb();
-                return cardEnvelope(entry);
-            } catch (error) {
-                const safe = error instanceof HttpError ? error : new HttpError(502, "Codex tracker is temporarily unavailable");
-                const entry = existing ?? { key, provider: "codex", kind: "reset", data: null, fetchedAt: 0, refreshAfterMs: 0 };
-                entry.lastAttemptAt = attemptAt;
-                entry.lastManualAttemptAt = lastManualAttemptAt;
-                entry.backoffUntil = config.now() + (safe.status === 429 ? 60_000 : 30_000);
-                entry.backoffStatus = safe.status;
-                entry.backoffMessage = safe.message;
-                db.cards[key] = entry;
-                saveDb();
-                if (entry.data) return cardEnvelope(entry, { stale: true, warning: safe.message });
-                throw safe;
-            } finally {
-                pending.delete(key);
+                return { key, provider: "codex", kind: "reset", data, fetchedAt: config.now(), refreshAfterMs: 30_000 };
             }
-        })();
-        pending.set(key, work);
-        return work;
+        });
     }
 
     async function fetchRobloxJson(url, signal, resource) {
@@ -568,111 +514,80 @@ export function createBridge(options = {}) {
     async function resolveRobloxGame(reference, forceRefresh) {
         const placeId = parseRobloxPlaceReference(reference);
         const key = `roblox:game:${placeId}`;
-        const existing = own(db.cards, key) ? db.cards[key] : null;
-        const now = config.now();
-        if (existing?.backoffUntil > now) {
-            if (existing.data) return cardEnvelope(existing, { stale: true, warning: existing.backoffMessage ?? "Roblox is temporarily unavailable" });
-            throw new HttpError(existing.backoffStatus ?? 502, existing.backoffMessage ?? "Roblox is temporarily unavailable");
-        }
-        if (pending.has(key)) return pending.get(key);
-
         const robloxEnvelope = (entry, extra = {}) => cardEnvelope(entry, {
             ...(entry.warning ? { warning: entry.warning } : {}),
             ...extra
         });
+        return resolveUpstreamCard({
+            provider: "roblox",
+            kind: "game",
+            key,
+            forceRefresh,
+            unavailableMessage: "Roblox is temporarily unavailable",
+            envelope: robloxEnvelope,
+            fetchFresh: async ({ existing }) => {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+                try {
+                    const cachedUniverseId = existing?.data?.placeId === placeId ? positiveSafeInteger(existing.data.universeId) : null;
+                    const universeId = cachedUniverseId ?? positiveSafeInteger(asRecord(await fetchRobloxJson(
+                        `https://apis.roblox.com/universes/v1/places/${placeId}/universe`, controller.signal, "place"
+                    )).universeId);
+                    if (!universeId) throw new HttpError(502, "Roblox returned an invalid game response");
 
-        const fresh = existing && now - existing.fetchedAt < existing.refreshAfterMs;
-        const automaticTooSoon = existing && now - (existing.lastAttemptAt ?? 0) < MIN_AUTOMATIC_UPSTREAM_INTERVAL_MS;
-        if (!forceRefresh && existing && (fresh || automaticTooSoon)) return robloxEnvelope(existing);
+                    const [detailsResult, universeResult, artworkResult, eventsResult] = await Promise.allSettled([
+                        fetchRobloxJson(`https://games.roblox.com/v1/games?universeIds=${universeId}`, controller.signal, "game").then(raw => normalizeRobloxDetails(raw, universeId)),
+                        fetchRobloxJson(`https://develop.roblox.com/v1/universes/${universeId}`, controller.signal, "universe").then(raw => normalizeRobloxUniverse(raw, universeId)),
+                        fetchRobloxArtwork(universeId, controller.signal, existing),
+                        fetchRobloxEvents(universeId, controller.signal, existing, forceRefresh)
+                    ]);
+                    const artwork = artworkResult.status === "fulfilled" ? artworkResult.value : { iconUrl: null, thumbnailUrl: null, expiresAt: 0 };
+                    const events = eventsResult.status === "fulfilled" ? eventsResult.value : { events: [], status: "unavailable", truncated: false, expiresAt: 0, retryAt: config.now() + 60000 };
+                    const details = detailsResult.status === "fulfilled" ? detailsResult.value : null;
+                    const universe = universeResult.status === "fulfilled" ? universeResult.value : null;
+                    const rateLimited = [detailsResult, universeResult].find(result => result.status === "rejected" && result.reason instanceof HttpError && result.reason.status === 429);
+                    if (rateLimited) throw rateLimited.reason;
+                    if (!details && !universe) throw new HttpError(502, "Roblox is temporarily unavailable");
 
-        const manualDeferredMs = forceRefresh && existing && Math.max(0, MIN_MANUAL_UPSTREAM_INTERVAL_MS - (now - (existing.lastManualAttemptAt ?? 0)));
-        if (manualDeferredMs) return robloxEnvelope(existing, { refreshDeferredMs: manualDeferredMs });
-
-        const work = (async () => {
-            const attemptAt = config.now();
-            const lastManualAttemptAt = forceRefresh ? attemptAt : existing?.lastManualAttemptAt;
-            if (forceRefresh && existing) existing.lastManualAttemptAt = attemptAt;
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
-            try {
-                const cachedUniverseId = existing?.data?.placeId === placeId ? positiveSafeInteger(existing.data.universeId) : null;
-                const universeId = cachedUniverseId ?? positiveSafeInteger(asRecord(await fetchRobloxJson(
-                    `https://apis.roblox.com/universes/v1/places/${placeId}/universe`, controller.signal, "place"
-                )).universeId);
-                if (!universeId) throw new HttpError(502, "Roblox returned an invalid game response");
-
-                const [detailsResult, universeResult, artworkResult, eventsResult] = await Promise.allSettled([
-                    fetchRobloxJson(`https://games.roblox.com/v1/games?universeIds=${universeId}`, controller.signal, "game").then(raw => normalizeRobloxDetails(raw, universeId)),
-                    fetchRobloxJson(`https://develop.roblox.com/v1/universes/${universeId}`, controller.signal, "universe").then(raw => normalizeRobloxUniverse(raw, universeId)),
-                    fetchRobloxArtwork(universeId, controller.signal, existing),
-                    fetchRobloxEvents(universeId, controller.signal, existing, forceRefresh)
-                ]);
-                const artwork = artworkResult.status === "fulfilled" ? artworkResult.value : { iconUrl: null, thumbnailUrl: null, expiresAt: 0 };
-                const events = eventsResult.status === "fulfilled" ? eventsResult.value : { events: [], status: "unavailable", truncated: false, expiresAt: 0, retryAt: config.now() + 60000 };
-                const details = detailsResult.status === "fulfilled" ? detailsResult.value : null;
-                const universe = universeResult.status === "fulfilled" ? universeResult.value : null;
-                const rateLimited = [detailsResult, universeResult].find(result => result.status === "rejected" && result.reason instanceof HttpError && result.reason.status === 429);
-                if (rateLimited) throw rateLimited.reason;
-                if (!details && !universe) throw new HttpError(502, "Roblox is temporarily unavailable");
-
-                const warnings = [];
-                if (!details) warnings.push("Roblox game details are temporarily unavailable");
-                if (!universe || universe.status === "unknown") warnings.push("Roblox availability could not be confirmed");
-                const name = details?.name || universe?.name || "";
-                if (!name) throw new HttpError(502, "Roblox returned an invalid game response");
-                const data = {
-                    placeId,
-                    universeId,
-                    name,
-                    creator: details?.creator || universe?.creator || "Unknown",
-                    playing: details?.playing ?? null,
-                    favorites: details?.favorites ?? null,
-                    visits: details?.visits ?? null,
-                    status: universe?.status ?? "unknown",
-                    statusReason: universe?.statusReason ?? "Roblox availability could not be confirmed",
-                    updatedAt: details?.updatedAt || universe?.updatedAt || "",
-                    iconUrl: artwork.iconUrl,
-                    thumbnailUrl: artwork.thumbnailUrl,
-                    events: events.events,
-                    eventsStatus: events.status,
-                    eventsTruncated: events.truncated
-                };
-                const entry = {
-                    key,
-                    provider: "roblox",
-                    kind: "game",
-                    data,
-                    fetchedAt: config.now(),
-                    refreshAfterMs: ROBLOX_GAME_TTL_MS,
-                    artworkExpiresAt: artwork.expiresAt,
-                    eventsExpiresAt: events.expiresAt,
-                    eventsRetryAt: events.retryAt,
-                    lastAttemptAt: attemptAt,
-                    lastManualAttemptAt,
-                    warning: warnings.length ? warnings.join("; ") : undefined
-                };
-                db.cards[key] = entry;
-                saveDb();
-                return robloxEnvelope(entry);
-            } catch (error) {
-                const safe = error instanceof HttpError ? error : new HttpError(502, "Roblox is temporarily unavailable");
-                const entry = existing ?? { key, provider: "roblox", kind: "game", data: null, fetchedAt: 0, refreshAfterMs: 0 };
-                entry.lastAttemptAt = attemptAt;
-                entry.lastManualAttemptAt = lastManualAttemptAt;
-                entry.backoffUntil = config.now() + (safe.status === 429 ? 60_000 : 30_000);
-                entry.backoffStatus = safe.status;
-                entry.backoffMessage = safe.message;
-                db.cards[key] = entry;
-                saveDb();
-                if (entry.data) return cardEnvelope(entry, { stale: true, warning: safe.message });
-                throw safe;
-            } finally {
-                clearTimeout(timeout);
-                pending.delete(key);
+                    const warnings = [];
+                    if (!details) warnings.push("Roblox game details are temporarily unavailable");
+                    if (!universe || universe.status === "unknown") warnings.push("Roblox availability could not be confirmed");
+                    const name = details?.name || universe?.name || "";
+                    if (!name) throw new HttpError(502, "Roblox returned an invalid game response");
+                    const data = {
+                        placeId,
+                        universeId,
+                        name,
+                        creator: details?.creator || universe?.creator || "Unknown",
+                        playing: details?.playing ?? null,
+                        favorites: details?.favorites ?? null,
+                        visits: details?.visits ?? null,
+                        status: universe?.status ?? "unknown",
+                        statusReason: universe?.statusReason ?? "Roblox availability could not be confirmed",
+                        updatedAt: details?.updatedAt || universe?.updatedAt || "",
+                        iconUrl: artwork.iconUrl,
+                        thumbnailUrl: artwork.thumbnailUrl,
+                        events: events.events,
+                        eventsStatus: events.status,
+                        eventsTruncated: events.truncated
+                    };
+                    return {
+                        key,
+                        provider: "roblox",
+                        kind: "game",
+                        data,
+                        fetchedAt: config.now(),
+                        refreshAfterMs: ROBLOX_GAME_TTL_MS,
+                        artworkExpiresAt: artwork.expiresAt,
+                        eventsExpiresAt: events.expiresAt,
+                        eventsRetryAt: events.retryAt,
+                        warning: warnings.length ? warnings.join("; ") : undefined
+                    };
+                } finally {
+                    clearTimeout(timeout);
+                }
             }
-        })();
-        pending.set(key, work);
-        return work;
+        });
     }
 
     const cardHandlers = new Map([
