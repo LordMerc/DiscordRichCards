@@ -1,3 +1,7 @@
+import { expandedKinds } from "./bridge/providers.mjs";
+
+export { expandedKinds };
+
 export interface SummaryData {
     title: string;
     subtitle?: string;
@@ -47,10 +51,6 @@ export function validateSummary(value: unknown): value is SummaryData {
     for (const key of ["startedAt", "endsAt"]) if (value[key] !== undefined && (!text(value[key], 100) || !Number.isFinite(Date.parse(value[key])))) return false;
     return true;
 }
-export const expandedKinds: Record<string, string[]> = {
-    fivem: ["server"], minecraft: ["server"], dockhand: ["status"], statuspage: ["status"],
-    spotify: ["track", "playlist", "live"], twitch: ["channel"], steam: ["game"], youtube: ["live"], x: ["post"]
-};
 export function validExpandedReference(provider: string, kind: string, reference: string) {
     if (!expandedKinds[provider]?.includes(kind)) return false;
     if (["fivem", "minecraft", "dockhand", "statuspage"].includes(provider)) return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(reference);
