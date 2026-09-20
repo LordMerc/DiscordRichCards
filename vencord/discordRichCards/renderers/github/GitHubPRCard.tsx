@@ -6,7 +6,8 @@ import type { RichCardDescriptor } from "../../types";
 
 export function GitHubPRCard({ descriptor }: { descriptor: RichCardDescriptor; }) {
     const { data, error, notice, refresh, refreshDisabled, refreshLabel } = useCard(descriptor, validateGitHub, 15000);
-    const ref = parseGitHubPRRef(descriptor.reference)!;
+    const ref = parseGitHubPRRef(descriptor.reference);
+    if (!ref) return <CardShell><div className="hermes-live-error" role="status">Invalid GitHub reference.</div></CardShell>;
     // Construct the destination from the validated marker, never from an upstream URL.
     const url = `https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`;
     if (!data) return <CardShell><div className={error ? "hermes-live-error" : "hermes-live-loading"} role="status">{error || "Connecting to GitHub…"}</div></CardShell>;
