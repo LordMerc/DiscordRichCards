@@ -8,12 +8,13 @@ import { createManagedBridge } from "./bridge/managed.mjs";
 import { createConnectionStore, hasSecureStorage } from "./bridge/connections.mjs";
 import { requestJson as providerRequest } from "./bridge/transport.mjs";
 import { minecraftStatus } from "./bridge/minecraft.mjs";
+import { expandedArtworkHosts } from "./bridge/expanded.mjs";
 
 // Discord blocks external image hosts unless registered before its page loads.
 // Only images are allowed: APIs remain native requests and no script/connect rule is added.
 CspPolicies["https://rbxcdn.com"] = ["img-src"];
 CspPolicies["https://*.rbxcdn.com"] = ["img-src"];
-for (const host of ["i.scdn.co", "mosaic.scdn.co", "static-cdn.jtvnw.net", "cdn.akamai.steamstatic.com", "shared.akamai.steamstatic.com", "i.ytimg.com", "i9.ytimg.com", "pbs.twimg.com"]) {
+for (const host of expandedArtworkHosts) {
     CspPolicies[`https://${host}`] = ["img-src"];
 }
 

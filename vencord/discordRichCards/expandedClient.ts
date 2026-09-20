@@ -1,3 +1,5 @@
+import { expandedArtworkHosts } from "./bridge/expanded.mjs";
+
 export interface SummaryData {
     title: string;
     subtitle?: string;
@@ -21,7 +23,7 @@ export function formatSummaryField(field: SummaryData["fields"][number]): string
     return counts.every(Number.isSafeInteger) ? counts.map(value => countFormatter.format(value)).join(" / ") : field.value;
 }
 
-const imageHosts = new Set(["i.scdn.co", "mosaic.scdn.co", "static-cdn.jtvnw.net", "cdn.akamai.steamstatic.com", "shared.akamai.steamstatic.com", "i.ytimg.com", "i9.ytimg.com", "pbs.twimg.com"]);
+const imageHosts = new Set(expandedArtworkHosts);
 const actionHosts = new Set(["open.spotify.com", "www.twitch.tv", "twitch.tv", "store.steampowered.com", "www.youtube.com", "youtube.com", "x.com", "cfx.re"]);
 const statuses = new Set(["online", "offline", "live", "scheduled", "ended", "healthy", "degraded", "outage", "unknown", "info"]);
 function record(value: unknown): value is Record<string, unknown> { return !!value && typeof value === "object" && !Array.isArray(value); }
