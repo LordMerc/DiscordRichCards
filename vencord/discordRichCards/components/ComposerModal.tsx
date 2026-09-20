@@ -16,6 +16,25 @@ function isOwnAuthorAllowed(botUserIds: string) {
     return !allowed.length || Boolean(userId && allowed.includes(userId));
 }
 
+interface ComposerNoticeState {
+    source: string;
+    profileError: string;
+    link: string;
+    card: ComposerCard | null;
+    providerEnabled: boolean;
+    hasExistingCard: boolean;
+    ownAuthorAllowed: boolean;
+}
+
+function composerNotice({ source, profileError, link, card, providerEnabled, hasExistingCard, ownAuthorAllowed }: ComposerNoticeState): string | undefined {
+    if (source === "profile" && profileError) return profileError;
+    if (!card && source === "link" && link.trim()) return "Paste a supported GitHub, Roblox, Spotify, Twitch, Steam, YouTube, X or Codex tracker link.";
+    if (card && !providerEnabled) return `${card.provider} cards are disabled in DiscordRichCards settings.`;
+    if (hasExistingCard) return "This channel's draft already contains a RichCard marker. One card is allowed per message.";
+    if (!ownAuthorAllowed) return "Your Allowed Discord author IDs setting excludes your account, so this card will not render for you.";
+    return undefined;
+}
+
 export function ComposerModal({ channelId, ...modalProps }: RenderModalProps & { channelId: string; }) {
     const [link, setLink] = useState("");
     const [includeUrl, setIncludeUrl] = useState(true);
@@ -68,15 +87,7 @@ export function ComposerModal({ channelId, ...modalProps }: RenderModalProps & {
         modalProps.onClose();
     };
 
-    const notice = source === "profile" && profileError ? profileError : !card && source === "link" && link.trim()
-        ? "Paste a supported GitHub, Roblox, Spotify, Twitch, Steam, YouTube, X or Codex tracker link."
-        : card && !providerEnabled
-            ? `${card.provider} cards are disabled in DiscordRichCards settings.`
-            : hasExistingCard
-                ? "This channel's draft already contains a RichCard marker. One card is allowed per message."
-                : !ownAuthorAllowed
-                    ? "Your Allowed Discord author IDs setting excludes your account, so this card will not render for you."
-                    : undefined;
+    const notice = composerNotice({ source, profileError, link, card, providerEnabled, hasExistingCard, ownAuthorAllowed });
 
     return <Modal
         {...modalProps}
