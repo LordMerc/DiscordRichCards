@@ -12,7 +12,9 @@ export function RobloxGameCard({ descriptor }: { descriptor: RichCardDescriptor;
     const { data, error, notice, refresh, refreshDisabled, refreshLabel } = useCard(descriptor, validateRoblox, 30000);
     const [failedIcon, setFailedIcon] = useState<string | null>(null);
     const [failedThumbnail, setFailedThumbnail] = useState<string | null>(null);
-    const url = "https://www.roblox.com/games/" + parseRobloxGameRef(descriptor.reference)!;
+    const gameId = parseRobloxGameRef(descriptor.reference);
+    if (gameId === null) return <CardShell><div className="hermes-live-error" role="status">Invalid Roblox reference.</div></CardShell>;
+    const url = "https://www.roblox.com/games/" + gameId;
     if (!data) return <CardShell><div className={error ? "hermes-live-error" : "hermes-live-loading"} role="status">{error || "Connecting to Roblox…"}</div></CardShell>;
     return <CardShell className="rich-card-roblox" status={data.status === "open" ? "success" : data.status === "locked" ? "error" : "paused"}>
         {data.thumbnailUrl && failedThumbnail !== data.thumbnailUrl && <div className="rich-card-roblox-artwork" aria-hidden="true">
