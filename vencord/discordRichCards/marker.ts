@@ -1,8 +1,9 @@
+import type { ExpandedKind, ExpandedProvider } from "./bridge/providers.mjs";
 import type { RichCardDescriptor } from "./types";
 
 export interface ComposerCard {
-    provider: "github" | "roblox" | "codex" | "fivem" | "minecraft" | "dockhand" | "statuspage" | "spotify" | "twitch" | "steam" | "youtube" | "x";
-    kind: "pr" | "game" | "reset" | "server" | "status" | "track" | "playlist" | "live" | "channel" | "post";
+    provider: "github" | "roblox" | "codex" | ExpandedProvider;
+    kind: "pr" | "game" | "reset" | ExpandedKind;
     reference: string;
     url: string;
 }

@@ -2,6 +2,29 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const { createExpandedResolver } = await import("../vencord/discordRichCards/bridge/expanded.mjs");
+const providers = await import("../vencord/discordRichCards/bridge/providers.mjs");
+
+test("the provider registry is the single source for bridge support, client kinds, labels and refresh intervals", () => {
+    assert.deepEqual([...providers.bridgeBackedKinds], [
+        "fivem:server", "minecraft:server", "dockhand:status", "statuspage:status",
+        "spotify:track", "spotify:playlist", "twitch:channel", "steam:game", "youtube:live", "x:post"
+    ]);
+    assert.deepEqual(providers.expandedKinds, {
+        fivem: ["server"], minecraft: ["server"], dockhand: ["status"], statuspage: ["status"],
+        spotify: ["track", "playlist", "live"], twitch: ["channel"], steam: ["game"], youtube: ["live"], x: ["post"]
+    });
+    assert.equal(providers.isBridgeBacked("spotify", "live"), false);
+    assert.equal(providers.isExpandedProvider("spotify"), true);
+    assert.equal(providers.isExpandedProvider("github"), false);
+    assert.equal(Object.keys(providers.providerLabels).length, providers.expandedProviders.length);
+    assert.equal(Object.keys(providers.providerGlyphs).length, providers.expandedProviders.length);
+    assert.equal(providers.bridgeTtlMs("spotify", "track"), 5 * 60_000);
+    assert.equal(providers.bridgeTtlMs("x", "post"), 10 * 60_000);
+    assert.equal(providers.bridgeTtlMs("youtube", "live"), 30_000);
+    const { expanded } = resolver();
+    for (const pair of providers.bridgeBackedKinds) assert.equal(expanded.supports(...pair.split(":")), true);
+    assert.equal(expanded.supports("spotify", "live"), false);
+});
 
 test("a running Dockhand container with a failed health check is degraded", async () => {
     const { expanded } = resolver({ profiles: [profile("dockhand", { baseUrl: "http://192.168.1.2:3000", environmentId: 1, containerNames: ["web"] }, { session: "native-session" })],

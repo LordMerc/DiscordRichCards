@@ -1,6 +1,7 @@
 import type { FluxStore } from "@vencord/discord-types";
 import { findStoreLazy } from "@webpack";
 import { PresenceStore, UserStore, useEffect, useState, useStateFromStores } from "@webpack/common";
+import { providerGlyphs, providerLabels } from "../../bridge/providers.mjs";
 import { CardShell } from "../../components/CardShell";
 import { formatSummaryField, safeSummaryUrl, spotifyActivitiesForUser, spotifyActivity, validateSummary } from "../../expandedClient";
 import type { SummaryData } from "../../expandedClient";
@@ -9,8 +10,6 @@ import { useCard } from "../../useCard";
 
 const LocalActivityStore = findStoreLazy("LocalActivityStore") as FluxStore & { getActivities(): unknown; };
 
-export const providerLabels: Record<string, string> = { fivem: "FiveM", minecraft: "Minecraft", dockhand: "Dockhand", statuspage: "Service status", spotify: "Spotify", twitch: "Twitch", steam: "Steam", youtube: "YouTube", x: "X" };
-const glyphs: Record<string, string> = { fivem: "F", minecraft: "M", dockhand: "D", statuspage: "●", spotify: "♫", twitch: "T", steam: "S", youtube: "▶", x: "𝕏" };
 function duration(milliseconds: number) {
     const seconds = Math.max(0, Math.floor(milliseconds / 1000));
     return seconds >= 3600 ? `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -34,7 +33,7 @@ function Artwork({ src, provider }: { src?: string; provider: string; }) {
     useEffect(() => setFailed(false), [src]);
     return <div className="rich-card-summary-art" aria-hidden="true">{src && !failed
         ? <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
-        : <span>{glyphs[provider] ?? "●"}</span>}</div>;
+        : <span>{providerGlyphs[provider] ?? "●"}</span>}</div>;
 }
 function SummaryBody({ provider, data }: { provider: string; data: SummaryData; }) {
     return <>

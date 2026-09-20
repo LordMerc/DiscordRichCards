@@ -1,11 +1,8 @@
+import { bridgeTtlMs, isBridgeBacked } from "./providers.mjs";
+
 const MANUAL_GATE_MS = 5_000;
 const RATE_LIMIT_BACKOFF_MS = 60_000;
 const ERROR_BACKOFF_MS = 30_000;
-
-const SUPPORTED = new Set([
-    "fivem:server", "minecraft:server", "dockhand:status", "statuspage:status",
-    "spotify:track", "spotify:playlist", "twitch:channel", "steam:game", "youtube:live", "x:post"
-]);
 
 const IMAGE_HOSTS = new Set([
     "i.scdn.co", "mosaic.scdn.co", "static-cdn.jtvnw.net", "cdn.akamai.steamstatic.com",
@@ -525,22 +522,11 @@ export function createExpandedResolver(input = {}) {
         return summary({ title: name, subtitle: username ? `@${username}` : "", description: post.text, status: "info", statusLabel: "Post", fields: fields(count(metrics.like_count) !== null ? field("Likes", String(count(metrics.like_count))) : null, quote ? field("Quoted", boundedText(quote.text, 240)) : null), url: `https://x.com/${encodeURIComponent(username || "i")}/status/${card.reference}`, imageUrl: photo?.url, startedAt: post.created_at });
     }
 
-    const adapters = {
-        "fivem:server": fivem,
-        "minecraft:server": minecraft,
-        "dockhand:status": dockhand,
-        "statuspage:status": statuspage,
-        "spotify:track": spotify,
-        "spotify:playlist": spotify,
-        "twitch:channel": twitch,
-        "steam:game": steam,
-        "youtube:live": youtube,
-        "x:post": xPost
-    };
+    const adapters = { fivem, minecraft, dockhand, statuspage, spotify, twitch, steam, youtube, x: xPost };
 
     async function resolve(card, forceRefresh = false) {
         if (closed) throw new ExpandedError(503, "Bridge is closed");
-        if (!card || !SUPPORTED.has(`${card.provider}:${card.kind}`) || typeof card.reference !== "string") throw new ExpandedError(404, "Unknown card provider or kind");
+        if (!card || !isBridgeBacked(card.provider, card.kind) || typeof card.reference !== "string") throw new ExpandedError(404, "Unknown card provider or kind");
         syncRevision();
         const key = cardKey(card);
         const now = options.now();
@@ -558,9 +544,10 @@ export function createExpandedResolver(input = {}) {
         const work = (async () => {
             const lastManualAt = forceRefresh ? now : existing?.lastManualAt;
             try {
-                const data = await adapters[`${card.provider}:${card.kind}`](card, workRevision, workGeneration, forceRefresh);
+                const data = await adapters[card.provider](card, workRevision, workGeneration, forceRefresh);
                 ensureCurrent(workRevision, workGeneration);
-                const entry = { key, provider: card.provider, kind: card.kind, data, fetchedAt: options.now(), refreshAfterMs: ttl(card.provider, card.kind), expiresAt: options.now() + ttl(card.provider, card.kind), lastManualAt };
+                const ttl = bridgeTtlMs(card.provider, card.kind);
+                const entry = { key, provider: card.provider, kind: card.kind, data, fetchedAt: options.now(), refreshAfterMs: ttl, expiresAt: options.now() + ttl, lastManualAt };
                 cache.set(key, entry);
                 return envelope(entry);
             } catch (error) {
@@ -583,18 +570,11 @@ export function createExpandedResolver(input = {}) {
     }
 
     return {
-        supports(provider, kind) { return SUPPORTED.has(`${provider}:${kind}`); },
+        supports(provider, kind) { return isBridgeBacked(provider, kind); },
         resolve,
         invalidate() { revision = options.getRevision(); invalidateInternal(); },
         close() { closed = true; invalidateInternal(); }
     };
-}
-
-function ttl(provider, kind) {
-    if (provider === "spotify" || provider === "steam") return 5 * 60_000;
-    if (provider === "x") return 10 * 60_000;
-    if (provider === "fivem" || provider === "minecraft" || provider === "dockhand" || provider === "statuspage" || provider === "twitch" || (provider === "youtube" && kind === "live")) return 30_000;
-    return 60_000;
 }
 
 function envelope(entry, extra = {}) {

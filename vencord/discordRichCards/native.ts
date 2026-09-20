@@ -8,6 +8,7 @@ import { createManagedBridge } from "./bridge/managed.mjs";
 import { createConnectionStore, hasSecureStorage } from "./bridge/connections.mjs";
 import { requestJson as providerRequest } from "./bridge/transport.mjs";
 import { minecraftStatus } from "./bridge/minecraft.mjs";
+import { isExpandedProvider } from "./bridge/providers.mjs";
 
 // Discord blocks external image hosts unless registered before its page loads.
 // Only images are allowed: APIs remain native requests and no script/connect rule is added.
@@ -226,7 +227,7 @@ export async function getCard(
     _: IpcMainInvokeEvent, baseUrl: string, provider: string, kind: string,
     reference: string, token: string, acceptSelfSigned: boolean, refresh = false, useExternalBridge = false
 ) {
-    if (!useExternalBridge || ["fivem", "minecraft", "dockhand", "statuspage", "spotify", "twitch", "steam", "youtube", "x"].includes(provider)) {
+    if (!useExternalBridge || isExpandedProvider(provider)) {
         try {
             const local = await managed.connection();
             baseUrl = local.url;
