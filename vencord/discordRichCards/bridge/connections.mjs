@@ -70,9 +70,16 @@ export function validateConnection(input) {
     return { ...(input.id ? { id: input.id } : {}), provider: input.provider, name: input.name.trim(), config };
 }
 
+const SECRET_KEYS = {
+    twitch: ["clientSecret"],
+    spotify: ["clientSecret"],
+    youtube: ["apiKey"],
+    x: ["bearerToken"],
+};
+const NATIVE_ONLY_SECRET_KEYS = { dockhand: ["session"] };
+
 function validateSecret(provider, secret, native = false) {
-    const allowed = provider === "twitch" || provider === "spotify" ? ["clientSecret"]
-        : provider === "youtube" ? ["apiKey"] : provider === "x" ? ["bearerToken"] : provider === "dockhand" && native ? ["session"] : [];
+    const allowed = SECRET_KEYS[provider] ?? (native ? NATIVE_ONLY_SECRET_KEYS[provider] : undefined) ?? [];
     if (!record(secret) || Object.entries(secret).some(([key, value]) => !allowed.includes(key) || !text(value, 8192) || !value)) throw new Error("Invalid connection credential");
     if (provider === "dockhand" && secret.session && !/^[a-zA-Z0-9._~+\/-]+={0,2}$/.test(secret.session)) throw new Error("Invalid Dockhand session credential");
     return { ...secret };
